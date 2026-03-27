@@ -37,6 +37,9 @@
         "TRAP": "---",
         "ACELERACIÓN": "Aceleración (Analògica)",
         "VELOCIDAD DE CONSIGNA": "Velocitat de Consigna (Analògica)",
-        "ESFUERZO": "Esforç (Analògica)"
+        "ESFUERZO": "Esforç (Analògica)",
+        "DISTANCIA": "Distància (m)",
+        "FECHA - HORA": "Fecha - Hora",
+        "AAA": "Velocitat (km/h)"
     }
 }

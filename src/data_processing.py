@@ -1,5 +1,5 @@
 import pandas as pd  # type: ignore
-import pdfplumber  # type: ignore
+import pdfplumber  # type: ignore  # type: ignore
 import io
 import json
 import os
@@ -72,21 +72,61 @@ def get_suggested_mapping(columns, unit_model="UT 113-114"):
 
 @st.cache_data
 def extract_from_pdf(uploaded_file):
-    """Extract tables from PDF using pdfplumber."""
+    """Extract tables or fixed-width text from PDF using pdfplumber."""
+    import re
     with pdfplumber.open(uploaded_file) as pdf:
-        all_tables = []
+        all_dfs = []
         for page in pdf.pages:
+            # 1. Intentar extraure taula (Sèries 113/114 amb línies)
             tables = page.extract_tables()
-            for table in tables:
-                if not table: continue
-                df_cols = [str(c) if c is not None else f"Column_{i}" for i, c in enumerate(table[0])]
-                df = pd.DataFrame(table[1:], columns=df_cols)
-                all_tables.append(df)
+            if tables:
+                for table in tables:
+                    if not table: continue
+                    df_cols = [str(c).replace('\n', ' ').strip() if c is not None else f"Column_{i}" for i, c in enumerate(table[0])]
+                    df_tmp = pd.DataFrame(table[1:], columns=df_cols)
+                    all_dfs.append(df_tmp)
+            
+            # 2. Intentar parseig de text (Sèrie 112 / Fixed-width)
+            text = page.extract_text()
+            if text:
+                # Patró: DD/MM/YY - HH:MM:SS (Data) Distància (Dígits) Valor (Dígits.Decimal)
+                pattern = r"(\d{2}/\d{2}/\d{2} - \d{2}:\d{2}:\d{2})\s+(\d+)\s+([\d\.]+)"
+                matches = re.findall(pattern, text)
+                if matches:
+                    df_txt = pd.DataFrame(matches, columns=['Fecha - Hora', 'Distancia', 'AAA'])
+                    all_dfs.append(df_txt)
         
-        if not all_tables:
-            raise ValueError("No s'han trobat taules al PDF.")
+        if not all_dfs:
+            raise ValueError("No s'han trobat dades vàlides al PDF.")
         
-        return pd.concat(all_tables, ignore_index=True)
+        final_df = pd.concat(all_dfs, ignore_index=True)
+        
+        # NETEJA CRÍTICA: Eliminar files de "Llengenda" o capçaleres intermèdies
+        # Detectem la columna de temps (la més probable) i filtrem les files que no tinguin format de data
+        time_potential = next((c for c in final_df.columns if any(k in str(c).upper() for k in ['HORA', 'FECHA', 'TIME'])), None)
+        if time_potential:
+            # Manté només les files on el temps realment sembla una data
+            mask = final_df[time_potential].astype(str).str.contains(r'\d{2}/\d{2}/\d{2}', na=False)
+            final_df = final_df[mask].reset_index(drop=True)
+            
+        # Eliminar columnes completament buides (com les de les llegendes descartades)
+        final_df = final_df.dropna(axis=1, how='all')
+            
+        return final_df
+
+def normalize_distance(df, km_col):
+    """Detecta si la distancia está en KM o Metros y normaliza a Metros."""
+    if km_col not in df.columns:
+        return df
+    
+    vals = pd.to_numeric(df[km_col], errors='coerce').fillna(0)
+    # Heurística: Si el máximo es < 1000 y el delta es pequeño, probablemente sean KM
+    # Si el valor promedio es > 5000, probablemente sean metros (odómetro)
+    if vals.max() < 2000 and (vals.max() - vals.min()) < 150:
+        df[f"{km_col}_M"] = vals * 1000
+    else:
+        df[f"{km_col}_M"] = vals
+    return df
 
 def segment_by_blocks(df, speed_col='Velocitat'):
     """Split the trip into operational blocks based on stops."""
@@ -130,7 +170,7 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
     resampled = df_temp.resample('1min')
     
     summary = []
-    total_acc_dist = 0.0
+    total_acc_dist: float = 0.0
     last_states = {} # Memòria d'estats per detectar canvis
     
     for timestamp, block in resampled:
@@ -151,8 +191,16 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
         # Detecció d'alertes telemètriques bàsiques
         alerts = []
         if max_v > 90: alerts.append(f"🔴 EXCÉS VELOCITAT ({max_v:.1f} km/h)")
+        
         v_diff = block[speed_col].diff().fillna(0)
+        # Deceleració mitjana en m/s² (aprox)
+        decel = (v_diff / 3.6).mean() 
         if any(v_diff < -7): alerts.append("⚠️ FRENADA BRUSCA")
+        
+        # DETECCIÓ DE ROLL-BACK
+        km_diff = block[km_col].diff().fillna(0)
+        if any((km_diff < -0.001) & (block[speed_col] > 1)):
+            alerts.append("🔄 DETECTAT ROLL-BACK (Retrocediment)")
         
         # DETECCIÓ DE CANVIS D'ESTAT (0 <-> 1) en variables seleccionades
         extra_data = {}
@@ -200,7 +248,7 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
                 extra_data[f"var_{col}"] = "---"
 
         row = {
-            "start_time": timestamp.strftime('%H:%M'),
+            "start_time": pd.to_datetime(timestamp).strftime('%H:%M'),
             "ut_indicator": ut_val, 
             "distance": f"{total_acc_dist:,.1f} m", 
             "max_speed": f"{max_v:.1f}",
@@ -210,7 +258,7 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
         }
         row.update(extra_data)
         summary.append(row)
-        total_acc_dist += delta_m
+        total_acc_dist = float(total_acc_dist) + float(delta_m)  # type: ignore
         
     return summary
 
@@ -240,9 +288,14 @@ def calculate_kpis(df, km_col='KM', speed_col='Velocitat', time_col='Hora'):
         has_brusque_braking = any(v_diff < -7)
         has_overspeed = any(df[speed_col] > 90)
         
+        # Rollback check
+        km_diff = df[km_col].diff().fillna(0)
+        has_rollback = any((km_diff < -0.001) & (df[speed_col] > 1))
+        
         alert_msg = []
         if has_overspeed: alert_msg.append("Excés Velocitat")
         if has_brusque_braking: alert_msg.append("Frenada Brusca")
+        if has_rollback: alert_msg.append("Roll-back")
 
         kpis = {
             "start_time": df[time_col].iloc[0] if time_col in cols else "N/A",
@@ -252,7 +305,8 @@ def calculate_kpis(df, km_col='KM', speed_col='Velocitat', time_col='Hora'):
             "max_speed": f"{df[speed_col].max():.1f}",
             "avg_speed": f"{df[speed_col].mean():.1f}",
             "duration": f"{duration_td:.0f}",
-            "anomalies": " | ".join(alert_msg) if alert_msg else "Cap"
+            "anomalies": " | ".join(alert_msg) if alert_msg else "Cap",
+            "has_rollback": has_rollback
         }
         return kpis
     except Exception as e:

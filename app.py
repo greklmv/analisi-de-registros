@@ -157,47 +157,67 @@ st.markdown(f"""
     h2, h3, .stSubheader {{ font-family: 'Manrope', sans-serif !important; font-weight: 600 !important; color: var(--primary); text-transform: uppercase; }}
 
     .cockpit-card {{ 
-        background-color: {t['card_bg']}; 
+        background: {t['card_bg']}; 
         backdrop-filter: blur({t['glass_blur']});
         padding: 1.5rem; 
-        border-radius: 12px; 
+        border-radius: 16px; 
         border: 1px solid {t['border']} !important; 
         box-shadow: {t['shadow']}; 
-        transition: all 0.3s ease; 
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
         margin-bottom: 1rem; 
+        position: relative;
+        overflow: hidden;
     }}
-    .cockpit-card:hover {{ transform: translateY(-4px); border-color: var(--primary) !important; }}
+    .cockpit-card::before {{
+        content: ""; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+        transition: 0.5s;
+    }}
+    .cockpit-card:hover::before {{ left: 100%; }}
+    .cockpit-card:hover {{ transform: translateY(-5px) scale(1.01); border-color: var(--primary) !important; }}
     
-    .kpi-label {{ font-family: 'Inter', sans-serif; font-weight: 600; font-size: 0.75rem; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 0.5rem; }}
-    .kpi-value {{ font-family: 'Manrope', sans-serif; font-size: 2.5rem; font-weight: 800; color: var(--on-surface); line-height: 1; }}
-    .kpi-unit {{ font-size: 0.9rem; font-weight: 500; color: var(--primary); margin-left: 6px; }}
+    .kpi-label {{ font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.7rem; color: var(--on-surface-variant); text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 8px; }}
+    .kpi-value {{ font-family: 'Manrope', sans-serif; font-size: 2.8rem; font-weight: 800; color: var(--on-surface); line-height: 1; letter-spacing: -0.02em; }}
+    .kpi-unit {{ font-size: 0.8rem; font-weight: 600; color: var(--primary); margin-left: 8px; opacity: 0.8; }}
     
     .glass-panel {{ 
         background: {t['card_bg']}; 
         backdrop-filter: blur(40px); 
-        border-radius: 24px; 
-        padding: 3rem; 
+        border-radius: 32px; 
+        padding: 4rem; 
         border: 1px solid {t['border']}; 
+        box-shadow: {t['shadow']};
     }}
 
     .stButton>button {{ 
         background: linear-gradient(135deg, var(--primary), {"#00a2ff" if t['primary'] == "#00d2ff" else "#003b79"}) !important; 
         color: {"#002c38" if t['primary'] == "#00d2ff" else "#ffffff"} !important; 
-        border-radius: 10px !important; border: none !important; 
+        border-radius: 12px !important; border: none !important; 
         font-family: 'Manrope', sans-serif !important; font-weight: 800 !important; 
-        text-transform: uppercase !important; padding: 0.8rem 1.8rem !important; 
+        text-transform: uppercase !important; padding: 0.8rem 2.5rem !important; 
         transition: all 0.3s ease !important; 
+        letter-spacing: 0.1em !important;
+        box-shadow: 0 4px 15px rgba(0, 210, 255, 0.2) !important;
+    }}
+    .stButton>button:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 210, 255, 0.4) !important;
     }}
 
     .status-badge {{ 
-        display: inline-flex; align-items: center; gap: 10px; 
-        background-color: rgba(0, 210, 255, 0.1); padding: 8px 18px; 
-        border-radius: 30px; font-size: 0.75rem; font-weight: 800; color: var(--primary);
+        display: inline-flex; align-items: center; gap: 12px; 
+        background: rgba(0, 210, 255, 0.08); padding: 10px 22px; 
+        border-radius: 40px; font-size: 0.7rem; font-weight: 800; color: var(--primary);
+        border: 1px solid rgba(0, 210, 255, 0.2);
+        letter-spacing: 0.1em;
     }}
-    .pulse-dot {{ width: 10px; height: 10px; background-color: var(--primary); border-radius: 50%; box-shadow: 0 0 15px var(--primary); animation: pulse 2s infinite; }}
-    @keyframes pulse {{ 0% {{ transform: scale(0.9); opacity: 0.4; }} 50% {{ transform: scale(1.2); opacity: 1; }} 100% {{ transform: scale(0.9); opacity: 0.4; }} }}
+    .pulse-dot {{ width: 8px; height: 8px; background-color: var(--primary); border-radius: 50%; box-shadow: 0 0 15px var(--primary); animation: pulse 2s infinite; }}
+    @keyframes pulse {{ 0% {{ transform: scale(0.9); opacity: 0.4; box-shadow: 0 0 0 0 rgba(0, 210, 255, 0.7); }} 70% {{ transform: scale(1.1); opacity: 1; box-shadow: 0 0 0 10px rgba(0, 210, 255, 0); }} 100% {{ transform: scale(0.9); opacity: 0.4; box-shadow: 0 0 0 0 rgba(0, 210, 255, 0); }} }}
 
-    [data-testid="stSidebar"] img {{ filter: {"brightness(0) invert(1)" if st.session_state.theme_mode == "FOSC (Cockpit)" else "none"}; }}
+    [data-testid="stSidebar"] img {{ filter: {"brightness(0) invert(1)" if st.session_state.theme_mode == "FOSC (Cockpit)" else "none"}; transition: all 0.5s ease; }}
+    
+    /* Animació de càrrega per a transicions */
+    .stProgress > div > div > div > div {{ background-image: linear-gradient(90deg, var(--primary), var(--secondary)) !important; }}
 
     #MainMenu {{visibility: hidden;}} header {{visibility: hidden;}} footer {{visibility: hidden;}}
 </style>
@@ -210,14 +230,32 @@ def main():
     if 'last_loaded_key' not in st.session_state: st.session_state.last_loaded_key = None
 
     # --- HEADER ---
-    st.markdown('<div style="padding-top: 1.5rem;"></div>', unsafe_allow_html=True)
-    h_col1, h_col2 = st.columns([0.7, 0.3])
-    with h_col1:
-        st.markdown(f"# 🚆 Analista registres")
-    with h_col2:
-        st.markdown(f'<div style="text-align: right; padding-top: 1rem;"><div class="status-badge"><div class="pulse-dot"></div> EN_LÍNIA</div></div>', unsafe_allow_html=True)
+    st.markdown('<div style="padding-top: 1rem;"></div>', unsafe_allow_html=True)
+    header_container = st.container()
+    with header_container:
+        h_col1, h_col2 = st.columns([0.75, 0.25])
+        with h_col1:
+            st.markdown(f"""
+                <div style="display: flex; align-items: center; gap: 20px;">
+                    <div style="background: {t['primary']}; width: 4px; height: 45px; border-radius: 10px;"></div>
+                    <div>
+                        <h1 style="margin: 0; padding: 0; line-height: 1.1;">ANALISTA OTMR <span style="color: {t['primary']}; opacity: 0.8;">PRO</span></h1>
+                        <p style="margin: 0; color: {t['on_surface_variant']}; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase;">
+                            Ferrocarrils de la Generalitat de Catalunya • Xarxa de Telemetria
+                        </p>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+        with h_col2:
+            st.markdown(f"""
+                <div style="text-align: right; padding-top: 0.8rem;">
+                    <div class="status-badge">
+                        <div class="pulse-dot"></div> TELEMETRIA ACTIVA
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
 
-    st.markdown('<div style="margin-bottom: 2rem; border-bottom: 1px solid var(--outline-variant);"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-top: 1.5rem; margin-bottom: 2.5rem; border-bottom: 2px solid var(--outline-variant); opacity: 0.3;"></div>', unsafe_allow_html=True)
 
     # --- SIDEBAR ---
     st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/4/4b/FGC_original_logo.svg", width=120)
@@ -264,22 +302,22 @@ def main():
             df = st.session_state.processed_data
             all_cols = df.columns.tolist()
             
-            # --- AUTO-DETECCIÓ PERSISTENT DE VARIABLES CRÍTIQUES (INDIE DEL MULTISELECT) ---
+            # --- AUTO-DETECCIÓ PERSISTENT DE VARIABLES CRÍTIQUES ---
             if 'speed_col' not in st.session_state or st.session_state.speed_col not in all_cols:
                 for col in all_cols:
-                    if any(k in str(col).upper() for k in ['VELOCIDAD', 'SPEED', 'V_UT']): 
+                    if any(k in str(col).upper() for k in ['VELOCIDAD', 'SPEED', 'V_UT', 'VEL_', 'V_', 'KM/H', 'AAA']): 
                         st.session_state.speed_col = col; break
                 else: st.session_state.speed_col = all_cols[min(1, len(all_cols)-1)]
 
             if 'km_col' not in st.session_state or st.session_state.km_col not in all_cols:
                 for col in all_cols:
-                    if any(k in str(col).upper() for k in ['DISTANCIA', 'KM', 'X_UT']): 
+                    if any(k in str(col).upper() for k in ['DISTANCIA', 'KM', 'X_UT', 'DIST_']): 
                         st.session_state.km_col = col; break
                 else: st.session_state.km_col = all_cols[min(2, len(all_cols)-1)]
 
             if 'time_col' not in st.session_state or st.session_state.time_col not in all_cols:
                 for col in all_cols:
-                    if any(k in str(col).upper() for k in ['HORA', 'TIME', 'SYSTEMTIME']): 
+                    if any(k in str(col).upper() for k in ['HORA', 'TIME', 'SYSTEMTIME', 'FECHA', 'FECHA-HORA']): 
                         st.session_state.time_col = col; break
                 else: st.session_state.time_col = all_cols[0]
 
@@ -287,24 +325,27 @@ def main():
             km_col = st.session_state.km_col
             time_col = st.session_state.time_col
 
-            # --- INTERVAL D'ANÀLISI ---
+            # --- INTERVAL D'ANÀLISI I FILTRATGE ---
             st.markdown("### ⏲️ Interval d'Anàlisi")
             try:
-                temp_time_series = pd.to_datetime(df[time_col], errors='coerce')
-                min_t = temp_time_series.min().time() if not temp_time_series.isnull().all() else datetime.min.time()
-                max_t = temp_time_series.max().time() if not temp_time_series.isnull().all() else datetime.max.time()
+                # Neteja de caràcters per a la Sèrie 112 (DD/MM/YY - HH:MM:SS)
+                raw_t = df[time_col].astype(str).str.replace(' - ', ' ', regex=False)
+                temp_ts = pd.to_datetime(raw_t, dayfirst=True, errors='coerce')
+                
+                min_t = temp_ts.min().time() if not temp_ts.isnull().all() else datetime.min.time()
+                max_t = temp_ts.max().time() if not temp_ts.isnull().all() else datetime.max.time()
                 
                 f1, f2 = st.columns(2)
                 start_time = f1.time_input("Inici d'anàlisi:", value=min_t)
                 end_time = f2.time_input("Final d'anàlisi:", value=max_t)
                 
-                mask = (temp_time_series.dt.time >= start_time) & (temp_time_series.dt.time <= end_time)
+                mask = (temp_ts.dt.time >= start_time) & (temp_ts.dt.time <= end_time)
                 analysis_df = df.loc[mask].reset_index(drop=True)
             except Exception:
-                st.warning("⚠️ No s'ha pogut filtrar per temps. Mostrant dades completes.")
+                st.warning("⚠️ Error en el format horari. Mostrant dades completes.")
                 analysis_df = df
 
-            # --- CÀLCUL I MOSTRA DE KPIS (BASATS EN EL FILTRE ACTUAL) ---
+            # --- CÀLCUL DE KPIS (SEMPRE ACTIUS) ---
             if not analysis_df.empty:
                 analysis_df[speed_col] = pd.to_numeric(analysis_df[speed_col], errors='coerce').fillna(0)
                 analysis_df[km_col] = pd.to_numeric(analysis_df[km_col], errors='coerce').fillna(0)
@@ -338,11 +379,7 @@ def main():
                 if opt in unit_vars: return f"{opt}: {unit_vars[opt]}"
                 return opt
 
-            # Inicialització del multiselect si no té valors
-            if 'selected_vars' not in st.session_state or not st.session_state.selected_vars:
-                st.session_state.selected_vars = all_cols[:8]
-
-            # Ús de 'key' directe per evitar el bug del doble clic
+            # Inicialització i selecció de variables
             selected_vars = st.multiselect(
                 "Variables actives (Telemetria):", 
                 options=all_options, 
@@ -350,57 +387,71 @@ def main():
                 format_func=variable_formatter
             )
 
-            # --- INTERVAL D'ANÀLISI ---
-            st.markdown("### ⏲️ Interval d'Anàlisi")
-            try:
-                temp_time_series = pd.to_datetime(df[time_col], errors='coerce')
-                min_t = temp_time_series.min().time() if not temp_time_series.isnull().all() else datetime.min.time()
-                max_t = temp_time_series.max().time() if not temp_time_series.isnull().all() else datetime.max.time()
-                
-                f1, f2 = st.columns(2)
-                start_time = f1.time_input("Inici d'anàlisi:", value=min_t)
-                end_time = f2.time_input("Final d'anàlisi:", value=max_t)
-                
-                mask = (temp_time_series.dt.time >= start_time) & (temp_time_series.dt.time <= end_time)
-                analysis_df = df.loc[mask].reset_index(drop=True)
-            except Exception:
-                st.warning("⚠️ No s'ha pogut filtrar per temps. Mostrant dades completes.")
-                analysis_df = df
-
-            # Re-càlcul de valors per als KPIs (ara basats en l'interval filtrat)
-            if not analysis_df.empty:
-                # Assegurem conversió numèrica per evitar TypeError amb strings
-                analysis_df[speed_col] = pd.to_numeric(analysis_df[speed_col], errors='coerce').fillna(0)
-                analysis_df[km_col] = pd.to_numeric(analysis_df[km_col], errors='coerce').fillna(0)
-                
-                val_speed = f"{analysis_df[speed_col].max():.1f}"
-                dist_raw = float(analysis_df[km_col].max() - analysis_df[km_col].min())
-                val_dist_m = f"{abs(dist_raw) * 1000 if abs(dist_raw) < 150 else abs(dist_raw):,.0f}"
-                first_ts = str(analysis_df[time_col].iloc[0])
-                val_time = first_ts.split(" ")[-1][:8] if " " in first_ts else first_ts[:8]
-            else:
-                val_speed, val_dist_m, val_time = "0.0", "0", "--:--"
-
             # --- RE-RENDER KPIS (DALT) ---
             # Nota: Streamlit no permet moure components cap amunt fàcilment sense 'placeholder' 
             # però com que ja s'han printat al principi de la secció del fitxer, aquí només ens assegurem
             # que tinguin les dades del filtratge si cal. Per mantenir simplicitat i complir "sempre actius":
             # Hem Mogut el càlcul a l'inici del bloc del fitxer (a dalt).
 
-            # --- GRÀFIC TELEMÈTRIC ---
-            st.subheader("📊 Telemetria en Temps Real")
-            fig = go.Figure()
-            fill_c = "rgba(0, 210, 255, 0.12)" if st.session_state.theme_mode == "FOSC (Cockpit)" else "rgba(0, 82, 163, 0.12)"
-            fig.add_trace(go.Scatter(x=analysis_df[time_col], y=analysis_df[speed_col], line={'color': t['primary'], 'width': 3}, fill='tozeroy', fillcolor=fill_c, name="Velocitat"))
+            # --- GRÀFIC TELEMÈTRIC COMPLEX ---
+            st.subheader("📊 Cockpit d'Anàlisi de Senyals")
             
-            # Afegeix altres variables seleccionades al gràfic si n'hi ha
-            for extra_v in selected_vars:
+            from plotly.subplots import make_subplots
+            
+            # Decidim si necessitem subplots (Velocitat + Seleccionades)
+            n_rows = 1 if not selected_vars else 2
+            row_heights = [0.7, 0.3] if n_rows == 2 else [1.0]
+            
+            fig = make_subplots(
+                rows=n_rows, cols=1, 
+                shared_xaxes=True, 
+                vertical_spacing=0.08,
+                row_heights=row_heights,
+                subplot_titles=("🚀 PERFIL DE VELOCITAT (KM/H)", "📡 SENYALS I ESTATS DE TREBALL") if n_rows > 1 else None
+            )
+            
+            # 1. Velocitat Principal
+            fill_c = "rgba(0, 210, 255, 0.15)" if st.session_state.theme_mode == "FOSC (Cockpit)" else "rgba(0, 82, 163, 0.15)"
+            fig.add_trace(
+                go.Scatter(
+                    x=analysis_df[time_col], 
+                    y=analysis_df[speed_col], 
+                    line={'color': t['primary'], 'width': 3.5, 'shape': 'spline'}, 
+                    fill='tozeroy', 
+                    fillcolor=fill_c, 
+                    name="Velocitat (KM/H)"
+                ), row=1, col=1
+            )
+            
+            # 2. Senyals addicionals (si n'hi ha)
+            colors_extra = ["#feb300", "#ff716c", "#00ff88", "#ff00ff", "#00ffff"]
+            for i, extra_v in enumerate(selected_vars):
                 if extra_v not in [speed_col, km_col, time_col] and extra_v in analysis_df.columns:
-                    fig.add_trace(go.Scatter(x=analysis_df[time_col], y=analysis_df[extra_v], name=extra_v, line={'width': 1.5}, opacity=0.7))
+                    target_row = 2 if n_rows > 1 else 1
+                    fig.add_trace(
+                        go.Scatter(
+                            x=analysis_df[time_col], 
+                            y=analysis_df[extra_v], 
+                            name=str(extra_v).split(':')[-1].strip(), 
+                            line={'width': 2, 'color': colors_extra[i % len(colors_extra)]}, 
+                            opacity=0.9
+                        ), row=target_row, col=1
+                    )
 
-            grid_c = 'rgba(255,255,255,0.05)' if t['plotly_template'] == 'plotly_dark' else 'rgba(0,0,0,0.05)'
-            fig.update_layout(template=t['plotly_template'], paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin={'l': 0, 'r': 0, 't': 40, 'b': 0}, height=450, hovermode="x unified", xaxis={"gridcolor": grid_c, "zeroline": False}, yaxis={"gridcolor": grid_c, "zeroline": False})
-            st.plotly_chart(fig, use_container_width=True)
+            grid_c = 'rgba(255,255,255,0.08)' if t['plotly_template'] == 'plotly_dark' else 'rgba(0,0,0,0.08)'
+            fig.update_layout(
+                template=t['plotly_template'], 
+                paper_bgcolor='rgba(0,0,0,0)', 
+                plot_bgcolor='rgba(0,0,0,0)', 
+                margin={'l': 0, 'r': 0, 't': 40, 'b': 0}, 
+                height=600 if n_rows > 1 else 450, 
+                hovermode="x unified",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            fig.update_xaxes(gridcolor=grid_c, zeroline=False, showline=True, linewidth=1, linecolor=grid_c)
+            fig.update_yaxes(gridcolor=grid_c, zeroline=False, showline=True, linewidth=1, linecolor=grid_c)
+            
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
             # --- GENERACIÓ D'INFORME ---
             st.markdown("---")
