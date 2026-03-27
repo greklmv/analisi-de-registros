@@ -125,13 +125,19 @@ def main():
                 
                 filtered_df = df[valid_selected].copy()
                 
-                # Intelligent Column Mapping
+                # Intelligent Column Mapping (Prioritzant noms exactes de FGC)
                 def_speed, def_km, def_time = 0, 0, 0
                 for i, col in enumerate(selected_vars):
                     c_up = str(col).upper()
-                    if 'VELOCIDAD' in c_up or 'SPEED' in c_up: def_speed = i
-                    if 'DISTANCIA' in c_up or 'KM' in c_up: def_km = i
-                    if 'HORA' in c_up or 'FECHA' in c_up or 'TIME' in c_up: def_time = i
+                    # Velocitat
+                    if c_up == 'VELOCIDAD (KM/H)': def_speed = i
+                    elif def_speed == 0 and ('VELOCIDAD' in c_up or 'SPEED' in c_up): def_speed = i
+                    # Distància
+                    if c_up == 'DISTANCIA': def_km = i
+                    elif def_km == 0 and ('DISTANCIA' in c_up or 'KM' in c_up): def_km = i
+                    # Timestamp
+                    if c_up == 'FECHA/HORA': def_time = i
+                    elif def_time == 0 and ('HORA' in c_up or 'FECHA' in c_up or 'TIME' in c_up): def_time = i
 
                 r1, r2, r3 = st.columns(3)
                 with r1: speed_col = st.selectbox("Velocitat:", selected_vars, index=def_speed)
