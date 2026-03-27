@@ -3,7 +3,7 @@ import pandas as pd  # type: ignore
 import plotly.express as px  # type: ignore
 import plotly.graph_objects as go  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
-from src.data_processing import load_data, segment_by_blocks, calculate_kpis, get_suggested_mapping, load_mappings, get_sheet_names  # type: ignore
+from src.data_processing import load_data, segment_by_blocks, calculate_kpis, get_suggested_mapping, load_mappings, get_sheet_names, get_minute_summary  # type: ignore
 from src.report_generator import generate_word_report  # type: ignore
 import io
 import time
@@ -429,10 +429,16 @@ def main():
                     plt.savefig(chart_buf, format='png', bbox_inches='tight')
                     plt.close()
                     
-                    blocks = segment_by_blocks(analysis_df, speed_col=str(speed_col))
-                    all_kpis = [calculate_kpis(b, km_col=str(km_col), speed_col=str(speed_col), time_col=str(time_col)) for b in blocks]
+                    # Re-càlcul del resum executiu minutat (Amb variables seleccionades)
+                    minute_summary = get_minute_summary(
+                        analysis_df, 
+                        time_col=str(time_col), 
+                        speed_col=str(speed_col), 
+                        km_col=str(km_col),
+                        extra_cols=st.session_state.get("selected_vars", [])
+                    )
                     
-                    doc_buf = generate_word_report(analysis_df, all_kpis, {"motiu": f"Anàlisi {st.session_state.current_unit}"}, chart_img=chart_buf.getvalue(), notes=notes)
+                    doc_buf = generate_word_report(analysis_df, minute_summary, {"motiu": f"Anàlisi {st.session_state.current_unit}"}, chart_img=chart_buf.getvalue(), notes=notes)
                     st.download_button("📥 DESCARREGAR INFORME", data=doc_buf, file_name=f"Informe_FGC_{current_key}.docx")
 
         except Exception as e:

@@ -24,25 +24,28 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, tem
     else:
         doc = Document(template_path)
 
-    # --- 1. ACTUALIZAR METADATOS (Tabla 0) ---
-    if len(doc.tables) > 0:
-        meta_table = doc.tables[0]
-        for row in meta_table.rows:
+    # --- 1. ACTUALIZAR METADATOS Y LIMPIEZA DE PLANTILLA ---
+    for table in doc.tables:
+        for row in table.rows:
             for cell in row.cells:
-                text = cell.text
+                text = cell.text.upper()
                 if "MOTIU:" in text: cell.text = f"MOTIU: {project_info.get('motiu', '')}"
                 elif "LLOC:" in text: cell.text = "LLOC: "
                 elif "DATA:" in text: cell.text = "DATA: "
                 elif "HORA:" in text: cell.text = "HORA: "
                 elif "TREN:" in text: cell.text = "TREN: "
-                elif "UT:" in text: cell.text = "UT: "
+                elif "UT:" in text: cell.text = f"UT: {project_info.get('ut', '')}"
                 elif "AGENT DE CONDUCCIÓ:" in text: cell.text = "AGENT DE CONDUCCIÓ: "
+                elif "ANÀLISI DE REGISTRE" in text:
+                    cell.text = f"ANÀLISI DE REGISTRE: {notes if notes else ''}"
+                elif "SIGNAT" in text and "NOM" in text:
+                    cell.text = "SIGNAT (NOM I COGNOM): "
 
     # --- 2. INSERTAR GRÁFICO ---
     if chart_img:
         safe_add_heading(doc, "Visualització Telemètrica", level=1)
         doc.add_picture(io.BytesIO(chart_img), width=Inches(6.0))
-        doc.add_paragraph("Legenda: Canal de velocitat (blau), consigna (vermell - si existeix).")
+        doc.add_paragraph("Llegenda: Canal de velocitat (blau), consigna (vermell - si existeix).")
 
     # --- 3. ACTUALIZAR DATOS DE BLOQUES (Tabla 1) ---
     if len(doc.tables) > 1:
@@ -54,26 +57,23 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, tem
             tbl.remove(tr)
 
         if isinstance(kpis, list):
-            for block in kpis:
+            for entry in kpis:
                 row_cells = data_table.add_row().cells
-                row_cells[0].text = str(block.get('start_time', '---'))
-                row_cells[1].text = str(block.get('start_km', '---'))
-                row_cells[2].text = str(block.get('distance', '---'))
-                row_cells[3].text = str(block.get('max_speed', '---'))
-                row_cells[4].text = str(block.get('avg_speed', '---'))
+                # Adaptació al format minutat (Minute Summary) amb Odòmetre i Acumulada
+                row_cells[0].text = str(entry.get('start_time', '---'))
+                row_cells[1].text = str(entry.get('ut_indicator', '---')) # Indicació UT (no es reinicia)
+                row_cells[2].text = str(entry.get('distance', '0 m'))     # Distància 0m -> ...
+                row_cells[3].text = str(entry.get('max_speed', '0'))
+                row_cells[4].text = str(entry.get('avg_speed', '0'))
                 
-                anom = block.get('anomalies', 0)
-                obs_text = "Circulació nominal"
-                if int(anom) > 0:
-                    obs_text = f"⚠️ ALERTA: {anom} incidències."
-                row_cells[5].text = f"{obs_text} (T: {block.get('duration', '---')}s)"
+                # Alertes (Incidències KPI i Canvis d'estat)
+                obs_final = entry.get('anomalies', '')
+                
+                target_cell = 5 if len(row_cells) > 5 else 4
+                row_cells[target_cell].text = obs_final
 
-    # --- 4. SECCIÓN DE OBSERVACIONES ---
-    if notes:
-        safe_add_heading(doc, "Anàlisi i Diagnòstic Tècnic", level=1)
-        doc.add_paragraph(notes)
-
-    doc.add_paragraph("\nInforme generat pel Sistema d'Anàlisi OTMR v4.2")
+    # --- 4. FIN DEL DOCUMENTO ---
+    doc.add_paragraph("\nInforme generat pel Sistema d'Anàlisi OTMR v4.96")
 
     buffer = io.BytesIO()
     doc.save(buffer)

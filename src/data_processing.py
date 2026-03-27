@@ -113,6 +113,107 @@ def segment_by_blocks(df, speed_col='Velocitat'):
         
     return [b for b in blocks if not b.empty]
 
+def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', extra_cols=None):
+    """Agrupa les dades en blocs de 1 minut per a un informe executiu amb distància acumulada i variables dinàmiques."""
+    if df.empty: return []
+    if extra_cols is None: extra_cols = []
+    
+    # Copy and ensure numeric for calculations
+    df_temp = df.copy()
+    df_temp[speed_col] = pd.to_numeric(df_temp[speed_col], errors='coerce').fillna(0)
+    df_temp[km_col] = pd.to_numeric(df_temp[km_col], errors='coerce').fillna(0)
+    
+    df_temp[time_col] = pd.to_datetime(df_temp[time_col], errors='coerce')
+    df_temp = df_temp.set_index(time_col)
+    
+    # Resampling per minuts
+    resampled = df_temp.resample('1min')
+    
+    summary = []
+    total_acc_dist = 0.0
+    last_states = {} # Memòria d'estats per detectar canvis
+    
+    for timestamp, block in resampled:
+        if block is None or block.empty: continue
+        
+        # Càlcul de KPIs bàsics
+        max_v = block[speed_col].max()
+        avg_v = block[speed_col].mean()
+        
+        # Valor de l'odòmetre real (Indicació de la UT en m/km) - NO ES REINICIA
+        ut_raw = block[km_col].iloc[0]
+        ut_val = f"{ut_raw * 1000 if ut_raw < 150 else ut_raw:,.1f}"
+        
+        # Distància d'aquest minut (delta)
+        delta_km = abs(block[km_col].max() - block[km_col].min())
+        delta_m = delta_km * 1000 if delta_km < 150 else delta_km
+        
+        # Detecció d'alertes telemètriques bàsiques
+        alerts = []
+        if max_v > 90: alerts.append(f"🔴 EXCÉS VELOCITAT ({max_v:.1f} km/h)")
+        v_diff = block[speed_col].diff().fillna(0)
+        if any(v_diff < -7): alerts.append("⚠️ FRENADA BRUSCA")
+        
+        # DETECCIÓ DE CANVIS D'ESTAT (0 <-> 1) en variables seleccionades
+        extra_data = {}
+        for col in extra_cols:
+            if col in [speed_col, km_col, str(time_col)]: continue
+            
+            col_series = block[col]
+            # Filtre de seguretat: Només detectem canvis en variables DIGITALS (0 o 1)
+            unique_vals = set(col_series.dropna().unique())
+            is_digital = unique_vals.issubset({0, 1, 0.0, 1.0, '0', '1', 0.0})
+            if not is_digital: continue
+            
+            # Busquem l'estat inicial real (el primer no-NaN)
+            current_state = last_states.get(col)
+            if pd.isna(current_state):
+                first_valid = col_series.dropna()
+                current_state = first_valid.iloc[0] if not first_valid.empty else np.nan
+            
+            changes_in_block = []
+            for val in col_series:
+                if pd.isna(val) or pd.isna(current_state) or val == current_state:
+                    if pd.isna(current_state) and not pd.isna(val):
+                        current_state = val # Establir línia base si veníem de NaN
+                    continue
+                
+                # Només si tenim un valor real i és diferent de l'anterior
+                emoji = "⬆️" if str(val) == "1" else "⬇️"
+                changes_in_block.append(f"CANVI {col}: {current_state} {emoji} {val}")
+                current_state = val
+            
+            # Guardem l'últim estat per al següent minut
+            last_states[col] = current_state
+            
+            if changes_in_block:
+                # Si hi ha hagut canvis, els afegim a les alertes del minut
+                alerts.extend(changes_in_block)
+
+            # Igualment guardem el valor mitjà/mode per a la visualització
+            try:
+                if pd.api.types.is_numeric_dtype(col_series):
+                    extra_data[f"var_{col}"] = f"{col_series.mean():.1f}"
+                else:
+                    extra_data[f"var_{col}"] = str(col_series.mode().iloc[0]) if not col_series.mode().empty else "---"
+            except Exception:
+                extra_data[f"var_{col}"] = "---"
+
+        row = {
+            "start_time": timestamp.strftime('%H:%M'),
+            "ut_indicator": ut_val, 
+            "distance": f"{total_acc_dist:,.1f} m", 
+            "max_speed": f"{max_v:.1f}",
+            "avg_speed": f"{avg_v:.1f}",
+            "anomalies": ", ".join(alerts) if alerts else "",
+            "count": len(block)
+        }
+        row.update(extra_data)
+        summary.append(row)
+        total_acc_dist += delta_m
+        
+    return summary
+
 def calculate_kpis(df, km_col='KM', speed_col='Velocitat', time_col='Hora'):
     """Calculate KPIs with real time diffs and anomaly detection."""
     try:
@@ -120,47 +221,39 @@ def calculate_kpis(df, km_col='KM', speed_col='Velocitat', time_col='Hora'):
         if km_col not in cols or speed_col not in cols:
             return None
         
-        # 1. Normalización de KM (si son metros -> KM)
+        # Conversió a numèric per seguretat
+        df[speed_col] = pd.to_numeric(df[speed_col], errors='coerce').fillna(0)
+        df[km_col] = pd.to_numeric(df[km_col], errors='coerce').fillna(0)
+        
         raw_start_km = float(df[km_col].iloc[0])
         raw_end_km = float(df[km_col].iloc[-1])
         
-        # 2. Diferencial de Tiempo Real
         if time_col in cols:
             start_t = pd.to_datetime(df[time_col].iloc[0], errors='coerce')
             end_t = pd.to_datetime(df[time_col].iloc[-1], errors='coerce')
-            if pd.notnull(start_t) and pd.notnull(end_t):
-                duration_td = (end_t - start_t).total_seconds()
-            else:
-                duration_td = float(len(df))
+            duration_td = (end_t - start_t).total_seconds() if pd.notnull(start_t) and pd.notnull(end_t) else float(len(df))
         else:
             duration_td = float(len(df))
 
-        # 3. Detección de Anomalías (Deceleración brusca)
+        # Detecció de tipus d'anomalia
         v_diff = df[speed_col].diff().fillna(0)
-        anomalies = int(v_diff[v_diff < -5].count())
+        has_brusque_braking = any(v_diff < -7)
+        has_overspeed = any(df[speed_col] > 90)
+        
+        alert_msg = []
+        if has_overspeed: alert_msg.append("Excés Velocitat")
+        if has_brusque_braking: alert_msg.append("Frenada Brusca")
 
         kpis = {
             "start_time": df[time_col].iloc[0] if time_col in cols else "N/A",
             "start_km": f"{raw_start_km:.3f}",
             "end_km": f"{raw_end_km:.3f}",
-            "distance": f"{(raw_end_km - raw_start_km):.3f}",
+            "distance": f"{abs(raw_end_km - raw_start_km):.3f}",
             "max_speed": f"{df[speed_col].max():.1f}",
             "avg_speed": f"{df[speed_col].mean():.1f}",
             "duration": f"{duration_td:.0f}",
-            "anomalies": anomalies
+            "anomalies": " | ".join(alert_msg) if alert_msg else "Cap"
         }
-        
-        # Add Catalan keys
-        kpis.update({
-            "Hora d'inici": kpis["start_time"],
-            "KM Inicial": kpis["start_km"],
-            "KM Final": kpis["end_km"],
-            "Distància Acumulada": kpis["distance"],
-            "Velocitat Màxima": kpis["max_speed"],
-            "Velocitat Mitjana": kpis["avg_speed"],
-            "Anomalies Detectades": kpis["anomalies"]
-        })
-        
         return kpis
     except Exception as e:
         return {"Error": str(e)}
