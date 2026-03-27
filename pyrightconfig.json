@@ -1,0 +1,20 @@
+{
+    "include": [
+        "app.py",
+        "src"
+    ],
+    "exclude": [
+        "**/__pycache__",
+        "**/.venv"
+    ],
+    "venv": ".venv",
+    "venvPath": ".",
+    "extraPaths": [
+        ".",
+        "./.venv/lib/python3.9/site-packages"
+    ],
+    "pythonVersion": "3.9",
+    "typeCheckingMode": "basic",
+    "useLibraryCodeForTypes": true
+}
+

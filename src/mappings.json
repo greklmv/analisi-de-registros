@@ -1,0 +1,42 @@
+{
+    "UT 113-114": {
+        "VELOCIDAD": "Velocitat (km/h)",
+        "VEL_CONSIGNA": "Velocitat Consigna (km/h)",
+        "VEL_OBJETIVO": "Velocitat Objectiu (km/h)",
+        "PRESION_TDP": "Pressió TDP (Bf)",
+        "TENSION_CATEN": "Tensió Catenària",
+        "ATO_ACE_OBJ": "Acc. Objectiu ATO",
+        "DISTANCIA": "Distància (m)",
+        "MATRICULA_UT": "Unitat de Tren"
+    },
+    "UT 112": {
+        "MD-MCOC": "Mensaje cabina ocupada",
+        "SMM-AT": "Marcha atrás",
+        "SMM-MAN": "Marcha maniobra M+5",
+        "ANTIPAT": "Antipatinaje / Antibloqueo",
+        "MD-AN-LF": "Anulación lazo freno",
+        "MD-AN-LT": "Anulación lazo tracción",
+        "MD-MLF": "Actuación lazo de freno",
+        "MD-MANFU": "Freno de urgencia manipulador",
+        "MD-N-FE": "Actuación freno de emergencia (seta)",
+        "MD-MLT": "Actuación lazo de tracción",
+        "MD-N-MTA": "Actuación tiradores de alarma",
+        "MD-FU-HM": "Freno de urgencia por hombre muerto",
+        "MD-N-MFE": "Freno de emergencia",
+        "N-PMTP": "Presión mínima en T.D.P",
+        "MODO ATP": "Modo ATP",
+        "M-M+30": "Modo M+30",
+        "MODO ATO": "Modo ATO",
+        "FU ATC": "Freno de urgencia por ATP",
+        "LL-ESP": "Llave especial",
+        "BOCINA": "Bocina",
+        "REG-AVR": "Registrador Avería",
+        "MIB-VIVO": "Fallo de comunicación con el FLG en cualquier sentido",
+        "SC-CMIB": "Fallo comunicación entre el MIB y la CPU",
+        "EFICIENC": "Fallo de alimentación del equipo",
+        "TRAP": "---",
+        "ACELERACIÓN": "Aceleración (Analògica)",
+        "VELOCIDAD DE CONSIGNA": "Velocitat de Consigna (Analògica)",
+        "ESFUERZO": "Esforç (Analògica)"
+    }
+}
