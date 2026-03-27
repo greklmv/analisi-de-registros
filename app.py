@@ -3,7 +3,7 @@ import pandas as pd  # type: ignore
 import plotly.express as px  # type: ignore
 import plotly.graph_objects as go  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
-from src.data_processing import load_data, segment_by_blocks, calculate_kpis, get_suggested_mapping, load_mappings  # type: ignore
+from src.data_processing import load_data, segment_by_blocks, calculate_kpis, get_suggested_mapping, load_mappings, get_sheet_names  # type: ignore
 from src.report_generator import generate_word_report  # type: ignore
 import io
 import time
@@ -87,8 +87,44 @@ def main():
 
     if final_file:
         try:
-            df = load_data(final_file)
+            # --- SELECCIÓ DE FULL (EXCEL) ---
+            sheet_name = 0
+            # Si no es Mock, comprobamos si es Excel para ver hojas
+            if final_file != "MOCK_FGC" and hasattr(final_file, 'name'):
+                name = getattr(final_file, 'name', '')
+                if name.endswith('.xlsx') or name.endswith('.xls'):
+                    sheets = get_sheet_names(final_file)
+                    if len(sheets) > 1:
+                        sheet_name = st.sidebar.selectbox("📋 Selecciona la Fulla de càlcul:", sheets)
+            
+            df = load_data(final_file, sheet_name=sheet_name)
             all_cols = df.columns.tolist()
+            
+            # --- DETECCIÓ DE TIPUS (ESPECIFICACIONS) ---
+            num_cols = df.select_dtypes(include=['number']).columns.tolist()
+            cat_cols = df.select_dtypes(exclude=['number']).columns.tolist()
+            
+            with st.sidebar.expander("📊 Detecció de Variables"):
+                st.write(f"🔢 Numèriques: {len(num_cols)}")
+                st.write(f"🔤 Categòriques: {len(cat_cols)}")
+                if st.checkbox("🔍 Veure detall de tipus"):
+                    st.json({"Numèriques": num_cols, "Categòriques": cat_cols})
+
+            # --- VISTA PRÈVIA PREMIUM ---
+            with st.expander("👁️ Vista Prèvia de Dades i Resum Estadístic", expanded=False):
+                st.markdown("### 📄 Registre de Telemetria (Últims increments)")
+                st.dataframe(df.head(20).style.format(precision=3), use_container_width=True)
+                
+                sum_c1, sum_c2, sum_c3, sum_c4 = st.columns(4)
+                sum_c1.metric("📊 Registres", f"{len(df):,}")
+                sum_c2.metric("📋 Columnes", len(all_cols))
+                sum_c3.metric("⚠️ Nuls", df.isna().sum().sum())
+                
+                # Mitjana d'una columna numèrica com a exemple estadístic
+                ex_col = num_cols[0] if num_cols else None
+                if ex_col:
+                    avg_val = df[ex_col].mean()
+                    sum_c4.metric(f"📈 Mitjana {ex_col[:10]}", f"{avg_val:.2f}")
             
             # --- SECTION 1: VARIABLE CORE ---
             st.subheader("🎯 Configuració de Senyals i Protocol")

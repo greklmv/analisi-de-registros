@@ -18,7 +18,7 @@ def load_mappings(file_path="src/mappings.json"):
     return {}
 
 @st.cache_data
-def load_data(uploaded_file):
+def load_data(uploaded_file, sheet_name=0):
     """Suporta Excel, CSV, PDF o genera dades d'exemple amb caché."""
     if uploaded_file == "MOCK_FGC":
         return generate_mock_fgc_data()
@@ -26,7 +26,7 @@ def load_data(uploaded_file):
     file_type = uploaded_file.name.split('.')[-1].lower()
     
     if file_type in ['xlsx', 'xls']:
-        df = pd.read_excel(uploaded_file)
+        df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
     elif file_type == 'csv':
         df = pd.read_csv(uploaded_file)
     elif file_type == 'pdf':
@@ -37,6 +37,17 @@ def load_data(uploaded_file):
     # Normalización inicial de columnas
     df.columns = [str(c).strip() for c in df.columns]
     return df
+
+def get_sheet_names(uploaded_file):
+    """Obté els noms de les fulles d'un fitxer Excel."""
+    file_type = uploaded_file.name.split('.')[-1].lower()
+    if file_type in ['xlsx', 'xls']:
+        try:
+            xl = pd.ExcelFile(uploaded_file)
+            return xl.sheet_names
+        except Exception:
+            return []
+    return []
 
 def get_suggested_mapping(columns, unit_model="UT 113-114"):
     """Retorna un mapeig suggerit amb normalització avanzada y cerca de subcadenes."""
