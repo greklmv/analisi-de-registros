@@ -125,16 +125,23 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, tem
             for entry in kpis:
                 row_cells = data_table.add_row().cells
                 row_cells[0].text = str(entry.get('start_time', '---'))
-                row_cells[1].text = str(entry.get('ut_indicator', '---'))
-                row_cells[2].text = str(entry.get('distance', '0 m'))
-                row_cells[3].text = str(entry.get('max_speed', '0'))
-                row_cells[4].text = str(entry.get('avg_speed', '0'))
                 
-                # Insertar Sparkline si hay datos
+                # Inserir Ubicació/Estació si la taula té prou espai (més de 6 columnes)
+                col_offset = 0
+                if len(row_cells) > 6:
+                    row_cells[1].text = str(entry.get('location', 'Tram Obert'))
+                    col_offset = 1
+                
+                row_cells[col_offset + 1].text = str(entry.get('ut_indicator', '---'))
+                row_cells[col_offset + 2].text = str(entry.get('distance', '0 m'))
+                row_cells[col_offset + 3].text = str(entry.get('max_speed', '0'))
+                row_cells[col_offset + 4].text = str(entry.get('avg_speed', '0'))
+                
+                # Inserir Sparkline si hi ha dades
                 speed_history = entry.get('speed_history', [])
-                if len(speed_history) > 2:
+                if len(row_cells) > (col_offset + 5) and len(speed_history) > 2:
                     spark_buf = create_sparkline(speed_history)
-                    paragraph = row_cells[5].paragraphs[0] if len(row_cells) > 5 else row_cells[4].add_paragraph()
+                    paragraph = row_cells[col_offset + 5].paragraphs[0]
                     run = paragraph.add_run()
                     run.add_picture(spark_buf, width=Inches(1.0))
 
@@ -143,7 +150,7 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, tem
                 if entry.get('has_rollback'):
                     obs_final = "⚠️ ROLL-BACK DETECTAT! " + obs_final
                 
-                target_cell = 6 if len(row_cells) > 6 else 5
+                target_cell = col_offset + 6
                 if target_cell < len(row_cells):
                     row_cells[target_cell].text = obs_final
 

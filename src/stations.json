@@ -1,0 +1,68 @@
+{
+  "PC-RE": {
+    "name": "Barcelona - Reina Elisenda",
+    "stations": [
+      {"id": "PC", "name": "Plaça Catalunya", "pk": 0.000},
+      {"id": "PR", "name": "Provença", "pk": 1.220},
+      {"id": "GR", "name": "Gràcia", "pk": 2.050},
+      {"id": "SG", "name": "Sant Gervasi", "pk": 2.610},
+      {"id": "MN", "name": "Muntaner", "pk": 3.080},
+      {"id": "BN", "name": "La Bonanova", "pk": 3.610},
+      {"id": "TT", "name": "Les Tres Torres", "pk": 4.080},
+      {"id": "SR", "name": "Sarrià", "pk": 4.610},
+      {"id": "RE", "name": "Reina Elisenda", "pk": 5.160}
+    ]
+  },
+  "GR-TB": {
+    "name": "Ramal Av. Tibidabo",
+    "origin": "GR",
+    "stations": [
+      {"id": "PM", "name": "Pl. Molina", "pk": 0.600},
+      {"id": "PD", "name": "Pàdua", "pk": 1.010},
+      {"id": "EP", "name": "El Putxet", "pk": 1.410},
+      {"id": "TB", "name": "Av. Tibidabo", "pk": 1.860}
+    ]
+  },
+  "SR-LP": {
+    "name": "Sarrià - Les Planes",
+    "origin": "SR",
+    "stations": [
+      {"id": "PF", "name": "Peu del Funicular", "pk": 3.110},
+      {"id": "VL", "name": "Baixador de Vallvidrera", "pk": 3.760},
+      {"id": "LP", "name": "Les Planes", "pk": 4.710}
+    ]
+  },
+  "LP-TR-NA": {
+    "name": "Vallès - Terrassa",
+    "origin": "LP",
+    "stations": [
+      {"id": "LF", "name": "La Floresta", "pk": 2.850},
+      {"id": "VD", "name": "Valldoreix", "pk": 4.540},
+      {"id": "SC", "name": "Sant Cugat Centre", "pk": 5.990},
+      {"id": "MS", "name": "Mira-sol", "pk": 7.510},
+      {"id": "HG", "name": "Hospital General", "pk": 9.050},
+      {"id": "RB", "name": "Rubí Centre", "pk": 10.890},
+      {"id": "FN", "name": "Les Fonts", "pk": 15.810},
+      {"id": "TR", "name": "Terrassa Rambla", "pk": 20.150},
+      {"id": "VP", "name": "Vallparadís Universitat", "pk": 21.670},
+      {"id": "EN", "name": "Terrassa Estació del Nord", "pk": 22.585},
+      {"id": "NA", "name": "Terrassa Nacions Unides", "pk": 23.852}
+    ]
+  },
+  "SC-PN": {
+    "name": "Ramal Sabadell",
+    "origin": "SC",
+    "stations": [
+      {"id": "VO", "name": "Volpelleres", "pk": 1.532},
+      {"id": "SJ", "name": "Sant Joan", "pk": 2.730},
+      {"id": "BT", "name": "Bellaterra", "pk": 4.400},
+      {"id": "UN", "name": "Universitat Autònoma", "pk": 5.700},
+      {"id": "SQ", "name": "Sant Quirze", "pk": 7.760},
+      {"id": "CF", "name": "Can Feu | Gràcia", "pk": 9.481},
+      {"id": "PJ", "name": "Sabadell Plaça Major", "pk": 10.609},
+      {"id": "CT", "name": "La Creu Alta", "pk": 11.756},
+      {"id": "NO", "name": "Sabadell Nord", "pk": 12.535},
+      {"id": "PN", "name": "Sabadell Parc del Nord", "pk": 13.918}
+    ]
+  }
+}

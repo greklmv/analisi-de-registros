@@ -34,9 +34,72 @@ def load_data(uploaded_file, sheet_name=0):
     else:
         raise ValueError("Format de fitxer no compatible. Usa Excel o PDF.")
     
-    # Normalización inicial de columnas
+    # Normalització inicial de PK si existeix
+    km_potential = next((c for c in df.columns if any(k in str(c).upper() for k in ['DISTANCIA', 'KM', 'X_UT', 'DIST_'])), None)
+    if km_potential:
+        df[km_potential] = pd.to_numeric(df[km_potential], errors='coerce').fillna(0)
+    
+    # Normalització inicial de columnes
     df.columns = [str(c).strip() for c in df.columns]
     return df
+
+def load_stations(file_path="src/stations.json"):
+    """Load train stations from an external JSON file and resolve absolute PKs."""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    full_path = os.path.join(base_dir, file_path)
+    if not os.path.exists(full_path):
+        return {}
+        
+    try:
+        with open(full_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            
+        # Resolució de PKs absoluta
+        # 1. Crear mapa ràpid d'ID d'estació -> PK per a lookups d'origen
+        id_to_pk = {}
+        for section in data.values():
+            for st in section.get("stations", []):
+                # Inicialment només guardem els que no tenen origen o són de la secció principal
+                if "origin" not in section:
+                    id_to_pk[st["id"]] = st["pk"]
+
+        # 2. Resoldre estacions amb origen (recursivament si calgués, però aquí usem 2 passades)
+        resolved_data = {}
+        for sec_id, section in data.items():
+            stations = section.get("stations", []).copy()
+            origin_id = section.get("origin")
+            
+            offset = 0.0
+            if origin_id in id_to_pk:
+                offset = id_to_pk[origin_id]
+            
+            for st in stations:
+                st["pk_abs"] = st["pk"] + offset
+                # Guardem a la memòria per a possibles sub-branques
+                id_to_pk[st["id"]] = st["pk_abs"]
+            
+            resolved_data[sec_id] = section
+        return resolved_data
+    except Exception:
+        return {}
+
+def get_closest_station(pk, stations_data):
+    """Identifica l'estació més propera per a un PK determinat."""
+    if not stations_data:
+        return "Tram Obert"
+    
+    best_station = "Tram Obert"
+    min_dist = 0.400 # Umbral de 400 metros para considerar que está en la estación
+    
+    for line_info in stations_data.values():
+        for st in line_info.get("stations", []):
+            st_pk = float(st.get("pk_abs", st.get("pk", 0)))
+            dist = abs(pk - st_pk)
+            if dist < min_dist:
+                min_dist = dist
+                best_station = st.get("name", "---")
+                
+    return best_station
 
 def get_sheet_names(uploaded_file):
     """Obté els noms de les fulles d'un fitxer Excel."""
@@ -172,6 +235,7 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
     summary = []
     total_acc_dist: float = 0.0
     last_states = {} # Memòria d'estats per detectar canvis
+    stations_data = load_stations()
     
     for timestamp, block in resampled:
         if block is None or block.empty: continue
@@ -181,8 +245,12 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
         avg_v = block[speed_col].mean()
         
         # Valor de l'odòmetre real (Indicació de la UT en m/km) - NO ES REINICIA
-        ut_raw = block[km_col].iloc[0]
+        ut_raw = float(block[km_col].iloc[0])
         ut_val = f"{ut_raw * 1000 if ut_raw < 150 else ut_raw:,.1f}"
+        
+        # Detecció de la ubicació (estació)
+        current_pk = ut_raw if ut_raw < 150 else ut_raw / 1000
+        loc_name = get_closest_station(current_pk, stations_data)
         
         # Distància d'aquest minut (delta)
         delta_km = abs(block[km_col].max() - block[km_col].min())
@@ -249,6 +317,7 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
 
         row = {
             "start_time": pd.to_datetime(timestamp).strftime('%H:%M'),
+            "location": loc_name,
             "ut_indicator": ut_val, 
             "distance": f"{total_acc_dist:,.1f} m", 
             "max_speed": f"{max_v:.1f}",

@@ -10,7 +10,7 @@
     ],
     "venv": ".venv",
     "venvPath": ".",
-    "pythonPath": "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/bin/python3.9",
+    "pythonPath": "./.venv/bin/python",
     "pythonVersion": "3.9",
     "typeCheckingMode": "basic",
     "useLibraryCodeForTypes": true

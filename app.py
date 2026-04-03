@@ -387,12 +387,6 @@ def main():
                 format_func=variable_formatter
             )
 
-            # --- RE-RENDER KPIS (DALT) ---
-            # Nota: Streamlit no permet moure components cap amunt fàcilment sense 'placeholder' 
-            # però com que ja s'han printat al principi de la secció del fitxer, aquí només ens assegurem
-            # que tinguin les dades del filtratge si cal. Per mantenir simplicitat i complir "sempre actius":
-            # Hem Mogut el càlcul a l'inici del bloc del fitxer (a dalt).
-
             # --- GRÀFIC TELEMÈTRIC COMPLEX ---
             st.subheader("📊 Cockpit d'Anàlisi de Senyals")
             
@@ -452,6 +446,43 @@ def main():
             fig.update_yaxes(gridcolor=grid_c, zeroline=False, showline=True, linewidth=1, linecolor=grid_c)
             
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+            # --- RESUM EXECUTIU (TAULA) ---
+            st.subheader("📋 Resum Executiu per Minut")
+            with st.spinner("Calculant segments..."):
+                minute_summary = get_minute_summary(
+                    analysis_df, 
+                    time_col=str(time_col), 
+                    speed_col=str(speed_col), 
+                    km_col=str(km_col),
+                    extra_cols=st.session_state.get("selected_vars", [])
+                )
+                
+                if minute_summary:
+                    summary_df = pd.DataFrame(minute_summary)
+                    # Traducció de columnes per a la UI
+                    ui_cols = {
+                        "start_time": "⌚ Hora",
+                        "location": "📍 Ubicació (Estació)",
+                        "ut_indicator": "📟 Odòmetre (m)",
+                        "distance": "📏 Dist. Segment",
+                        "max_speed": "🚀 V. Max",
+                        "avg_speed": "📈 V. Mig",
+                        "anomalies": "⚠️ Alertes"
+                    }
+                    summary_df = summary_df.rename(columns=ui_cols)
+                    
+                    # Mostrar la taula amb estil
+                    st.dataframe(
+                        summary_df, 
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config={
+                            "⚠️ Alertes": st.column_config.TextColumn(width="large")
+                        }
+                    )
+                else:
+                    st.info("No s'han pogut segmentar prou dades per al resum.")
 
             # --- GENERACIÓ D'INFORME ---
             st.markdown("---")
