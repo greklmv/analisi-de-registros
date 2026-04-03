@@ -3,36 +3,35 @@ import pandas as pd  # type: ignore
 import plotly.express as px  # type: ignore
 import plotly.graph_objects as go  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
-from src.data_processing import load_data, segment_by_blocks, calculate_kpis, get_suggested_mapping, load_mappings, get_sheet_names, get_minute_summary  # type: ignore
+from src.data_processing import (
+    load_data, segment_by_blocks, calculate_kpis, get_suggested_mapping, 
+    load_mappings, get_sheet_names, get_minute_summary, 
+    get_all_stations_flat, get_event_based_summary, load_stations, get_closest_station
+)  # type: ignore
 from src.report_generator import generate_word_report  # type: ignore
 import io
 import time
 import numpy as np
 from datetime import datetime
+import os
 
 # --- CONFIGURACIÓ DE LA PÀGINA ---
 st.set_page_config(
-    page_title="FGC | Analista OTMR Pro v4.2",
+    page_title="FGC | Analista OTMR Pro v4.96",
     page_icon="🚆",
     layout="wide",
 )
 
 # --- CONFIGURACIÓ DE TEMA I ESTILS DINÀMICS ---
-if 'theme_mode' not in st.session_state: st.session_state.theme_mode = "FOSC (Cockpit)"
+if 'theme_mode' not in st.session_state: st.session_state.theme_mode = "CLAR (Swiss)"
 
 # --- DEFINICIÓ DE TEMES ---
 THEMES = {
-    "FOSC (Cockpit)": {
-        "primary": "#00d2ff", "secondary": "#feb300", "background": "#0c0e10", "surface": "#0c0e10",
-        "surface_container": "#171a1c", "on_surface": "#f1f0f3", "on_surface_variant": "#aaabad",
-        "plotly_template": "plotly_dark", "shadow": "0 8px 32px 0 rgba(0, 0, 0, 0.37)",
-        "card_bg": "rgba(35, 38, 41, 0.45)", "glass_blur": "16px", "border": "rgba(255, 255, 255, 0.08)"
-    },
     "CLAR (Swiss)": {
-        "primary": "#0052A3", "secondary": "#FF5722", "background": "#f7f9fd", "surface": "#f7f9fd",
-        "surface_container": "#ffffff", "on_surface": "#191c1f", "on_surface_variant": "#424751",
-        "plotly_template": "plotly_white", "shadow": "0 2px 12px rgba(0,0,0,0.05)",
-        "card_bg": "#ffffff", "glass_blur": "0px", "border": "rgba(0, 82, 163, 0.1)"
+        "primary": "#0052A3", "secondary": "#FF5722", "background": "#f8fafc", "surface": "#f8fafc",
+        "surface_container": "#ffffff", "on_surface": "#0f172a", "on_surface_variant": "#475569",
+        "plotly_template": "plotly_white", "shadow": "0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)",
+        "card_bg": "#ffffff", "glass_blur": "0px", "border": "#e2e8f0"
     }
 }
 
@@ -56,10 +55,10 @@ st.markdown(f"""
 
     .main {{ background-color: var(--background) !important; color: var(--on-surface); font-family: 'Inter', sans-serif; }}
     [data-testid="stAppViewContainer"] {{ background-color: var(--background); }}
-    [data-testid="stHeader"] {{ background: rgba(12, 14, 16, 0.1) !important; backdrop-filter: blur(12px); }}
+    [data-testid="stHeader"] {{ background: rgba(255, 255, 255, 0.8) !important; backdrop-filter: blur(8px); }}
     [data-testid="stSidebar"] {{ 
-        background-color: {"#0c0e10" if st.session_state.theme_mode == "FOSC (Cockpit)" else "#ffffff"} !important; 
-        border-right: 1px solid var(--outline-variant) !important; 
+        background-color: #ffffff !important; 
+        border-right: 1px solid #e2e8f0 !important; 
     }}
     
     /* Millora de llegibilitat específica per al Sidebar */
@@ -214,16 +213,189 @@ st.markdown(f"""
     .pulse-dot {{ width: 8px; height: 8px; background-color: var(--primary); border-radius: 50%; box-shadow: 0 0 15px var(--primary); animation: pulse 2s infinite; }}
     @keyframes pulse {{ 0% {{ transform: scale(0.9); opacity: 0.4; box-shadow: 0 0 0 0 rgba(0, 210, 255, 0.7); }} 70% {{ transform: scale(1.1); opacity: 1; box-shadow: 0 0 0 10px rgba(0, 210, 255, 0); }} 100% {{ transform: scale(0.9); opacity: 0.4; box-shadow: 0 0 0 0 rgba(0, 210, 255, 0); }} }}
 
-    [data-testid="stSidebar"] img {{ filter: {"brightness(0) invert(1)" if st.session_state.theme_mode == "FOSC (Cockpit)" else "none"}; transition: all 0.5s ease; }}
+    [data-testid="stSidebar"] img {{ filter: none; transition: all 0.5s ease; }}
     
     /* Animació de càrrega per a transicions */
     .stProgress > div > div > div > div {{ background-image: linear-gradient(90deg, var(--primary), var(--secondary)) !important; }}
 
+
+    .top-schematic {{
+        background: #ffffff !important;
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        overflow-x: auto;
+        width: 100%;
+        display: block;
+    }}
+    .schematic-label {{ font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; fill: #64748b; }}
+    .schematic-label-main {{ font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 800; fill: #1e293b; }}
+    .schematic-node {{ fill: #ffffff; stroke: #94a3b8; stroke-width: 1.5; cursor: pointer; transition: all 0.2s; }}
+    .schematic-node:hover {{ stroke: var(--primary); stroke-width: 3; fill: #f1f5f9; }}
+    .schematic-node-pos {{ fill: var(--primary); stroke: #003b79; filter: drop-shadow(0 0 4px rgba(0,82,163,0.4)); cursor: pointer; }}
+    .schematic-node-origin {{ fill: var(--secondary); stroke: #d84315; filter: drop-shadow(0 0 4px rgba(255,87,34,0.4)); cursor: pointer; }}
+    .schematic-line {{ stroke: #cbd5e1; stroke-width: 2.5; fill: none; stroke-linecap: round; }}
+    
     #MainMenu {{visibility: hidden;}} header {{visibility: hidden;}} footer {{visibility: hidden;}}
 </style>
 """, unsafe_allow_html=True)
 
+
+def render_network_schematic(origin_id=None, pos_id=None):
+    """Renderitza el mapa de vies tècnic (estil FGC Cockpit)"""
+    import json
+    # Utilitzem les funcions importades globalment
+    network = load_stations()
+    if not network: return
+
+    # Paràmetres de dibuix
+    W, H = 1500, 260
+    X_START = 80
+    Y_MAIN = 130
+    SPACING = 55
+    NODE_W, NODE_H = 10, 22
+    
+    svg = f"""
+    <svg width="{W}" height="{H}" viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; border-radius:12px;">
+        <style>
+            .schematic-line {{ stroke: #cbd5e1; stroke-width: 2.5; fill: none; stroke-linecap: round; }}
+            .schematic-node {{ fill: #ffffff; stroke: #94a3b8; stroke-width: 1.5; cursor: pointer; transition: all 0.2s; }}
+            .schematic-node:hover {{ stroke: #0052A3; stroke-width: 3; fill: #f8fafc; }}
+            .schematic-node-pos {{ fill: #0052A3; stroke: #003b79; filter: drop-shadow(0 0 4px rgba(0,82,163,0.4)); cursor: pointer; animation: pulse-blue 2s infinite; }}
+            @keyframes pulse-blue {{ 0% {{ opacity: 1; }} 50% {{ opacity: 0.6; }} 100% {{ opacity: 1; }} }}
+            .schematic-node-origin {{ fill: #FF5722; stroke: #d84315; filter: drop-shadow(0 0 4px rgba(255,87,34,0.4)); cursor: pointer; }}
+            .schematic-label {{ font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 600; fill: #64748b; pointer-events: none; }}
+            .schematic-label-main {{ font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 800; fill: #1e293b; pointer-events: none; }}
+            .legend-text {{ font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 700; fill: #64748b; }}
+            .reset-btn {{ fill: #f1f5f9; stroke: #cbd5e1; transition: all 0.2s; }}
+            .reset-btn:hover {{ fill: #fee2e2; stroke: #ef4444; }}
+            a {{ text-decoration: none; }}
+        </style>
+        
+        <!-- Legend & Actions -->
+        <g transform="translate(20, 20)">
+            <rect x="0" y="0" width="10" height="10" rx="2" fill="#FF5722" />
+            <text x="15" y="9" class="legend-text">ORIGEN SELECCIONAT</text>
+            <rect x="150" y="0" width="10" height="10" rx="2" fill="#0052A3" />
+            <text x="165" y="9" class="legend-text">POSICIÓ ACTUAL (DATA)</text>
+            
+            <a href="/?station_origin=RESET" target="_self">
+                <rect x="330" y="-5" width="100" height="20" rx="10" class="reset-btn" />
+                <text x="380" y="9" text-anchor="middle" class="legend-text" style="fill:#ef4444;">❌ RESET FILTRE</text>
+            </a>
+        </g>
+    """
+    
+    def get_node_class(sid):
+        if sid == pos_id: return "schematic-node-pos"
+        if sid == origin_id: return "schematic-node-origin"
+        return "schematic-node"
+
+    # --- 1. TRONC COMÚ (PC -> SC) ---
+    trunk = network.get("Tronc-Comu-PC-SC", {}).get("stations", [])
+    x_pos = {}
+    
+    # Dibuixar línia principal
+    svg += f'<line x1="{X_START}" y1="{Y_MAIN}" x2="{X_START + (len(trunk)+1)*SPACING}" y2="{Y_MAIN}" class="schematic-line" />'
+    
+    for i, station_item in enumerate(trunk):
+        curr_x = X_START + i * SPACING
+        x_pos[station_item['id']] = curr_x
+        node_class = get_node_class(station_item['id'])
+        
+        # El node PC és més ample
+        w = NODE_W * 2 if station_item['id'] == "PC" else NODE_W
+        pk_abs = station_item.get('pk_abs', station_item['pk'])
+        svg += f'<a href="/?station_origin={station_item["id"]}" target="_self" title="Seleccionar {station_item["name"]} (PK {pk_abs:.3f})">'
+        svg += f'<rect x="{curr_x - w/2}" y="{Y_MAIN - NODE_H/2}" width="{w}" height="{NODE_H}" rx="3" class="{node_class}" />'
+        svg += f'<text x="{curr_x}" y="{Y_MAIN + NODE_H + 15}" text-anchor="middle" class="schematic-label-main">{station_item["id"]}</text>'
+        svg += '</a>'
+
+    x_sc = x_pos.get("SC", X_START + (len(trunk)-1)*SPACING)
+    
+    # --- 2. RAMAL L7 (Surt de GR cap avall) ---
+    x_gr = x_pos.get("GR", X_START + 2*SPACING)
+    l7 = network.get("Ramal-L7", {}).get("stations", [])
+    svg += f'<path d="M {x_gr} {Y_MAIN} L {x_gr+20} {Y_MAIN+60} L {x_gr + 20 + len(l7)*SPACING} {Y_MAIN+60}" class="schematic-line" />'
+    for i, station_item in enumerate(l7):
+        curr_x = x_gr + 40 + i * SPACING
+        node_class = get_node_class(station_item['id'])
+        pk_abs = station_item.get('pk_abs', station_item['pk'])
+        svg += f'<a href="/?station_origin={station_item["id"]}" target="_self" title="Seleccionar {station_item["name"]} (PK {pk_abs:.3f})">'
+        svg += f'<rect x="{curr_x - NODE_W/2}" y="{Y_MAIN + 60 - NODE_H/2}" width="{NODE_W}" height="{NODE_H}" rx="2" class="{node_class}" />'
+        svg += f'<text x="{curr_x}" y="{Y_MAIN + 60 + NODE_H + 12}" text-anchor="middle" class="schematic-label">{station_item["id"]}</text>'
+        svg += '</a>'
+
+    # --- 3. RAMAL L12 (Surt de SR cap amunt) ---
+    x_sr = x_pos.get("SR", X_START + 7*SPACING)
+    l12 = network.get("Ramal-L12", {}).get("stations", [])
+    svg += f'<path d="M {x_sr} {Y_MAIN} L {x_sr+20} {Y_MAIN-60} L {x_sr + 40 + SPACING} {Y_MAIN-60}" class="schematic-line" />'
+    # Node RE
+    curr_x_re = x_sr + 40
+    node_class = get_node_class(l12[0]['id'])
+    pk_abs = l12[0].get('pk_abs', l12[0]['pk'])
+    svg += f'<a href="/?station_origin={l12[0]["id"]}" target="_self" title="Seleccionar {l12[0]["name"]} (PK {pk_abs:.3f})">'
+    svg += f'<rect x="{curr_x_re - NODE_W/2}" y="{Y_MAIN - 60 - NODE_H/2}" width="{NODE_W}" height="{NODE_H}" rx="2" class="{node_class}" />'
+    svg += f'<text x="{curr_x_re}" y="{Y_MAIN - 60 - NODE_H - 5}" text-anchor="middle" class="schematic-label">{l12[0]["id"]}</text>'
+    svg += '</a>'
+    # Text Dip.RE blue
+    svg += f'<text x="{curr_x_re + 40}" y="{Y_MAIN - 60 - NODE_H - 10}" class="schematic-label" style="fill:#0052A3; font-weight:bold;">Dip.RE</text>'
+    svg += f'<rect x="{curr_x_re + 35}" y="{Y_MAIN - 60 - NODE_H/2}" width="20" height="15" rx="3" fill="#ffffff" stroke="#cbd5e1" />'
+
+    # --- 4. BIFURCACIÓ FINAL (SC -> S1/S2) ---
+    # S1 (Terrassa) cap amunt
+    s1 = network.get("Ramal-S1-Terrassa", {}).get("stations", [])
+    svg += f'<path d="M {x_sc} {Y_MAIN} L {x_sc+30} {Y_MAIN-60} L {x_sc + 40 + len(s1)*SPACING} {Y_MAIN-60}" class="schematic-line" />'
+    for i, station_item in enumerate(s1):
+        curr_x = x_sc + 50 + i * SPACING
+        node_class = get_node_class(station_item['id'])
+        
+        # Cas especial COR a Rubí
+        if station_item['id'] == "RB":
+            svg += f'<text x="{curr_x}" y="{Y_MAIN - 60 - NODE_H - 22}" text-anchor="middle" class="schematic-label" style="fill:#0052A3; font-weight:bold;">COR</text>'
+            svg += f'<rect x="{curr_x - 10}" y="{Y_MAIN - 60 - NODE_H - 15}" width="20" height="12" rx="2" fill="#ffffff" stroke="#cbd5e1" />'
+            
+        pk_abs = station_item.get('pk_abs', station_item['pk'])
+        svg += f'<a href="/?station_origin={station_item["id"]}" target="_self" title="Seleccionar {station_item["name"]} (PK {pk_abs:.3f})">'
+        svg += f'<rect x="{curr_x - NODE_W/2}" y="{Y_MAIN - 60 - NODE_H/2}" width="{NODE_W}" height="{NODE_H}" rx="2" class="{node_class}" />'
+        svg += f'<text x="{curr_x}" y="{Y_MAIN - 60 - NODE_H - 5}" text-anchor="middle" class="schematic-label">{station_item["id"]}</text>'
+        svg += '</a>'
+    svg += f'<text x="{x_sc + 60 + len(s1)*SPACING}" y="{Y_MAIN - 75}" class="schematic-label" style="fill:#0052A3; font-size:12px; font-weight:bold;">Can Roca</text>'
+
+    # S2 (Sabadell) cap avall
+    s2 = network.get("Ramal-S2-Sabadell", {}).get("stations", [])
+    svg += f'<path d="M {x_sc} {Y_MAIN} L {x_sc+30} {Y_MAIN+60} L {x_sc + 40 + len(s2)*SPACING} {Y_MAIN+60}" class="schematic-line" />'
+    for i, station_item in enumerate(s2):
+        curr_x = x_sc + 50 + i * SPACING
+        node_class = get_node_class(station_item['id'])
+        pk_abs = station_item.get('pk_abs', station_item['pk'])
+        svg += f'<a href="/?station_origin={station_item["id"]}" target="_self" title="Seleccionar {station_item["name"]} (PK {pk_abs:.3f})">'
+        svg += f'<rect x="{curr_x - NODE_W/2}" y="{Y_MAIN + 60 - NODE_H/2}" width="{NODE_W}" height="{NODE_H}" rx="2" class="{node_class}" />'
+        svg += f'<text x="{curr_x}" y="{Y_MAIN + 60 + NODE_H + 12}" text-anchor="middle" class="schematic-label">{station_item["id"]}</text>'
+        svg += '</a>'
+    svg += f'<text x="{x_sc + 60 + (len(s2)-1)*SPACING}" y="{Y_MAIN + 45}" class="schematic-label" style="fill:#0052A3; font-size:12px; font-weight:bold;">Ca N\'O</text>'
+
+    svg += '</svg>'
+    return svg
+
 def main():
+    # --- SYNC CLICS MAPA ---
+    if "station_origin" in st.query_params:
+        target_id = st.query_params["station_origin"]
+        if target_id == "RESET":
+            st.session_state.selected_st_ui = "Cap (Ús PK Absolut)"
+        else:
+            all_st = get_all_stations_flat()
+            found = next((s for s in all_st if s["id"] == target_id), None)
+            if found:
+                st.session_state.selected_st_ui = found["display_name"]
+        
+        st.query_params.clear()
+        st.rerun()
+
+    # --- ESTAT DE L'APLICACIÓ ---
     if 'selected_vars' not in st.session_state: st.session_state.selected_vars = []
     if 'current_unit' not in st.session_state: st.session_state.current_unit = "UT 113-114"
     if 'processed_data' not in st.session_state: st.session_state.processed_data = None
@@ -257,14 +429,41 @@ def main():
 
     st.markdown('<div style="margin-top: 1.5rem; margin-bottom: 2.5rem; border-bottom: 2px solid var(--outline-variant); opacity: 0.3;"></div>', unsafe_allow_html=True)
 
+    # --- MAPA TÈCNIC INTERACTIU (SEMPRE VISIBLE) ---
+    current_st_id = None
+    origin_st_id = None
+    
+    # 1. Obtenir ID d'origen des del selector
+    current_sel = st.session_state.get("selected_st_ui", "Cap")
+    if "(" in current_sel:
+        origin_st_id = current_sel.split("(")[-1].split(")")[0]
+
+    # 2. Obtenir ID de posició actual (si hi ha dades processades)
+    if st.session_state.get("processed_data") is not None:
+        try:
+            df = st.session_state.processed_data
+            # Busquem km_col si ja s'ha detectat
+            km_col = st.session_state.get("km_col")
+            if km_col and km_col in df.columns:
+                last_pk = df[km_col].iloc[-1]
+                s_data = load_stations()
+                closest_str = get_closest_station(last_pk, s_data)
+                if "(" in closest_str:
+                    current_st_id = closest_str.split("(")[-1].split(")")[0]
+        except: pass
+
+    svg_code = render_network_schematic(origin_id=origin_st_id, pos_id=current_st_id)
+    if svg_code:
+        # Evitem que Streamlit interpreti la indentació HTML com un bloc de codi Markdown
+        svg_code_clean = "".join([line.strip() for line in svg_code.split("\n")])
+        st.markdown(f'<div class="top-schematic">{svg_code_clean}</div>', unsafe_allow_html=True)
+
+    st.markdown('<div style="margin-bottom: 2rem;"></div>', unsafe_allow_html=True)
+
     # --- SIDEBAR ---
     st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/4/4b/FGC_original_logo.svg", width=120)
     
-    st.sidebar.markdown("### 🎨 Aparença")
-    new_theme = st.sidebar.radio("Esquema de colors:", options=list(THEMES.keys()), index=0 if st.session_state.theme_mode == "FOSC (Cockpit)" else 1, horizontal=True)
-    if new_theme != st.session_state.theme_mode:
-        st.session_state.theme_mode = new_theme
-        st.rerun()
+    st.sidebar.markdown("---")
 
     st.sidebar.markdown("### 📁 Control de Registres")
     uploaded_file = st.sidebar.file_uploader("", type=["xlsx", "xls", "csv", "pdf"], label_visibility="collapsed")
@@ -274,16 +473,41 @@ def main():
     st.sidebar.markdown("<br>", unsafe_allow_html=True)
     demo_mode = st.sidebar.toggle("Mode Demo (Simulació)", value=False)
     
+    st.sidebar.markdown("### 🎯 Anàlisi Ràpid")
+    col_p1, col_p2 = st.sidebar.columns(2)
+    if col_p1.button("🚉 Ultrapass. Estació", use_container_width=True):
+        st.toast("🔍 Cercant punts de frenada fora d'andana...")
+    if col_p2.button("🛑 Ultrapass. Senyal", use_container_width=True):
+        st.toast("⚠️ Analitzant creuament de balises...")
+    if st.sidebar.button("🎮 Mode de conducció", use_container_width=True):
+        st.toast("📑 Desglossant estats de tracció/frenat...")
+    
     # Identificador únic per al fitxer (o mode demo)
     current_key = "DEMO" if demo_mode else (uploaded_file.name if uploaded_file else None)
 
-    # --- LÒGICA DE PERSISTÈNCIA ---
-    # Si el fitxer ha canviat, invalidem dades prèvies
+    # Lògica de recuperació si el fitxer ha desaparegut del widget però el tenim en memòria (per reload de mapa)
+    if current_key is None and st.session_state.get("processed_data") is not None:
+        current_key = st.session_state.get("last_loaded_key")
+
+    # --- LÒGICA DE PERSISTÈNCIA MAPA ---
+    # Si tornem d'un clic de mapa (refresh complet del navegador), recuperem l'estat anterior
+    if st.session_state.get("just_clicked_map", False) and current_key is None and st.session_state.get("processed_data") is not None:
+        current_key = st.session_state.last_loaded_key
+        st.session_state.just_clicked_map = False
+    elif "just_clicked_map" in st.session_state:
+        st.session_state.just_clicked_map = False # Reset seguretat
+
+    # --- LÒGICA DE DESTRUCCIÓ/CONSTRUCCIÓ ---
+    # Si el fitxer ha canviat realment, invalidem dades prèvies
     if current_key != st.session_state.last_loaded_key:
         st.session_state.processed_data = None
         st.session_state.last_loaded_key = current_key
 
     if current_key:
+        if uploaded_file is None and not demo_mode and st.session_state.processed_data is not None:
+            st.sidebar.info(f"✅ **MEMÒRIA ACTIVA:**\n{current_key}")
+            st.sidebar.markdown("<small><i>(Pots canviar el fitxer adjuntant-ne un de nou)</i></small>", unsafe_allow_html=True)
+            
         try:
             # Carregar dades NOMÉS si no estan ja al session_state
             if st.session_state.processed_data is None:
@@ -325,9 +549,41 @@ def main():
             km_col = st.session_state.km_col
             time_col = st.session_state.time_col
 
+            # --- CONFIGURACIÓ DE LÍNIA I CALIBRATGE ---
+            st.markdown("### 🛤️ Context Ferroviari")
+            line_options = ["S1 (Terrassa)", "S2 (Sabadell)", "L6 (Sarrià)", "L7 (Tibidabo)", "L12 (R.Elisenda)", "Totes"]
+            st.selectbox("Línia d'Anàlisi:", options=line_options, key="active_line")
+            
+            st.markdown("---")
             # --- INTERVAL D'ANÀLISI I FILTRATGE ---
             st.markdown("### ⏲️ Interval d'Anàlisi")
             try:
+                all_st_flat = get_all_stations_flat()
+                st_names = [s["display_name"] for s in all_st_flat]
+                # Options per al selectbox
+                options = ["Cap (Ús PK Absolut)"] + st_names
+                
+                # Assegurar que el valor per defecte existeix a session_state i és vàlid
+                if "selected_st_ui" not in st.session_state or st.session_state.selected_st_ui not in options:
+                    st.session_state.selected_st_ui = "Cap (Ús PK Absolut)"
+                
+                # 4. Renderitzar el selector usant directament la key per a la sincronització bidireccional
+                sel_st_name = st.selectbox(
+                    "📍 Estació d'Origen (Calibratge PK):", 
+                    options=options,
+                    key="selected_st_ui"
+                )
+                
+                # 6. Actualitzar la info d'estació per al mapa/anàlisi
+                selected_starting_pk = None
+                if sel_st_name != "Cap (Ús PK Absolut)":
+                    sel_st_obj = next((s for s in all_st_flat if s["display_name"] == sel_st_name), None)
+                    if sel_st_obj:
+                        selected_starting_pk = float(sel_st_obj["pk_abs"])
+                        st.session_state.origin_st_info = sel_st_obj
+                else:
+                    st.session_state.origin_st_info = None
+                
                 # Neteja de caràcters per a la Sèrie 112 (DD/MM/YY - HH:MM:SS)
                 raw_t = df[time_col].astype(str).str.replace(' - ', ' ', regex=False)
                 temp_ts = pd.to_datetime(raw_t, dayfirst=True, errors='coerce')
@@ -341,9 +597,10 @@ def main():
                 
                 mask = (temp_ts.dt.time >= start_time) & (temp_ts.dt.time <= end_time)
                 analysis_df = df.loc[mask].reset_index(drop=True)
-            except Exception:
-                st.warning("⚠️ Error en el format horari. Mostrant dades completes.")
+            except Exception as e:
+                st.warning(f"⚠️ Error en el format horari o estacions: {e}. Mostrant dades completes.")
                 analysis_df = df
+                selected_starting_pk = None
 
             # --- CÀLCUL DE KPIS (SEMPRE ACTIUS) ---
             if not analysis_df.empty:
@@ -364,6 +621,24 @@ def main():
             with k_cols[1]: st.markdown(f'<div class="cockpit-card"><div class="kpi-label">📏 Distància Total</div><div class="kpi-value">{val_dist_m}<span class="kpi-unit">METRES</span></div></div>', unsafe_allow_html=True)
             with k_cols[2]: st.markdown(f'<div class="cockpit-card"><div class="kpi-label">📅 Timestamp Inici</div><div class="kpi-value">{val_time}<span class="kpi-unit">REF</span></div></div>', unsafe_allow_html=True)
             
+            # --- MAPA TÈCNIC DE VIES ---
+            current_st_id = None
+            origin_st_id = None
+            
+            # 1. Obtenir ID d'origen des del selector
+            current_sel = st.session_state.get("selected_st_ui", "Cap")
+            if "(" in current_sel:
+                origin_st_id = current_sel.split("(")[-1].split(")")[0]
+
+            # 2. Obtenir ID de posició actual des de la telemetria
+            if not analysis_df.empty:
+                last_pk = analysis_df[km_col].iloc[-1]
+                s_data = load_stations()
+                closest_str = get_closest_station(last_pk, s_data)
+                if "(" in closest_str:
+                    current_st_id = closest_str.split("(")[-1].split(")")[0]
+            
+            # 3. Lògica per a variables automàtiques
             suggested_mapping = get_suggested_mapping(all_cols, unit_model=st.session_state.current_unit)
             if suggested_mapping and not st.session_state.selected_vars:
                 with st.expander(f"✨ Protocol {st.session_state.current_unit} Detectat", expanded=True):
@@ -448,41 +723,62 @@ def main():
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
             # --- RESUM EXECUTIU (TAULA) ---
-            st.subheader("📋 Resum Executiu per Minut")
-            with st.spinner("Calculant segments..."):
-                minute_summary = get_minute_summary(
-                    analysis_df, 
-                    time_col=str(time_col), 
-                    speed_col=str(speed_col), 
-                    km_col=str(km_col),
-                    extra_cols=st.session_state.get("selected_vars", [])
-                )
-                
-                if minute_summary:
-                    summary_df = pd.DataFrame(minute_summary)
-                    # Traducció de columnes per a la UI
-                    ui_cols = {
-                        "start_time": "⌚ Hora",
-                        "location": "📍 Ubicació (Estació)",
-                        "ut_indicator": "📟 Odòmetre (m)",
-                        "distance": "📏 Dist. Segment",
-                        "max_speed": "🚀 V. Max",
-                        "avg_speed": "📈 V. Mig",
-                        "anomalies": "⚠️ Alertes"
-                    }
-                    summary_df = summary_df.rename(columns=ui_cols)
-                    
-                    # Mostrar la taula amb estil
-                    st.dataframe(
-                        summary_df, 
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "⚠️ Alertes": st.column_config.TextColumn(width="large")
-                        }
+            st.subheader("📋 Resum Executiu de l'Operació")
+            tab_op, tab_min = st.tabs(["🚆 Resum Operatiu (Esdeveniments)", "📊 Log per Minut (Detall)"])
+            
+            with tab_op:
+                with st.spinner("Analitzant parades i sortides..."):
+                    op_events = get_event_based_summary(
+                        analysis_df, 
+                        time_col=str(time_col), 
+                        speed_col=str(speed_col), 
+                        km_col=str(km_col),
+                        starting_pk=selected_starting_pk
                     )
-                else:
-                    st.info("No s'han pogut segmentar prou dades per al resum.")
+                    
+                    if op_events:
+                        op_df = pd.DataFrame(op_events)
+                        st.dataframe(
+                            op_df.rename(columns={"time": "⌚ Hora", "event": "📝 Esdeveniment", "details": "ℹ️ Detalls"}),
+                            use_container_width=True,
+                            hide_index=True
+                        )
+                    else:
+                        st.info("No s'han detectat esdeveniments operatius significatius (aturades/sortides).")
+
+            with tab_min:
+                with st.spinner("Calculant segments..."):
+                    minute_summary = get_minute_summary(
+                        analysis_df, 
+                        time_col=str(time_col), 
+                        speed_col=str(speed_col), 
+                        km_col=str(km_col),
+                        extra_cols=st.session_state.get("selected_vars", []),
+                        starting_pk=selected_starting_pk
+                    )
+                    
+                    if minute_summary:
+                        summary_df = pd.DataFrame(minute_summary)
+                        ui_cols = {
+                            "start_time": "⌚ Hora",
+                            "location": "📍 Ubicació (Estació)",
+                            "ut_indicator": "📟 Odòmetre (m)",
+                            "distance": "📏 Dist. Segment",
+                            "max_speed": "🚀 V. Max",
+                            "avg_speed": "📈 V. Mig",
+                            "anomalies": "⚠️ Alertes"
+                        }
+                        summary_df = summary_df.rename(columns=ui_cols)
+                        st.dataframe(
+                            summary_df, 
+                            use_container_width=True,
+                            hide_index=True,
+                            column_config={
+                                "⚠️ Alertes": st.column_config.TextColumn(width="large")
+                            }
+                        )
+                    else:
+                        st.info("No s'han pogut segmentar prou dades per al log minutat.")
 
             # --- GENERACIÓ D'INFORME ---
             st.markdown("---")
@@ -511,16 +807,32 @@ def main():
                     plt.savefig(chart_buf, format='png', bbox_inches='tight')
                     plt.close()
                     
-                    # Re-càlcul del resum executiu minutat (Amb variables seleccionades)
+                    # Re-càlcul del resum executiu (Events + Log per Minut)
+                    op_events = get_event_based_summary(
+                        analysis_df, 
+                        time_col=str(time_col), 
+                        speed_col=str(speed_col), 
+                        km_col=str(km_col),
+                        starting_pk=selected_starting_pk
+                    )
+                    
                     minute_summary = get_minute_summary(
                         analysis_df, 
                         time_col=str(time_col), 
                         speed_col=str(speed_col), 
                         km_col=str(km_col),
-                        extra_cols=st.session_state.get("selected_vars", [])
+                        extra_cols=st.session_state.get("selected_vars", []),
+                        starting_pk=selected_starting_pk
                     )
                     
-                    doc_buf = generate_word_report(analysis_df, minute_summary, {"motiu": f"Anàlisi {st.session_state.current_unit}"}, chart_img=chart_buf.getvalue(), notes=notes)
+                    doc_buf = generate_word_report(
+                        analysis_df, 
+                        minute_summary, 
+                        {"motiu": f"Anàlisi {st.session_state.current_unit}"}, 
+                        chart_img=chart_buf.getvalue(), 
+                        notes=notes,
+                        op_events=op_events
+                    )
                     st.download_button("📥 DESCARREGAR INFORME", data=doc_buf, file_name=f"Informe_FGC_{current_key}.docx")
 
         except Exception as e:

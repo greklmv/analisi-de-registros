@@ -27,7 +27,7 @@ def safe_add_heading(doc, text, level):
         run.bold = True
         run.font.size = Inches(0.2) if level == 1 else Inches(0.15)
 
-def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, template_path="/Users/grek/IA/Analisis registros/plantilla informe registros.docx"):
+def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_events=None, template_path="/Users/grek/IA/Analisis registros/plantilla informe registros.docx"):
     """
     Genera el informe Word utilizando una plantilla base avanzada con detección de anomalías y gráficos.
     """
@@ -105,6 +105,18 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, tem
     # Eliminamos físicamente los párrafos marcados (puntos por defecto)
     for p in paragraphs_to_remove:
         p.text = "" # No se puede borrar fácilmente, así que vaciamos el texto
+
+    # --- 1c. LÍNIA DE TEMPS OPERATIVA (Nou) ---
+    if op_events:
+        safe_add_heading(doc, "Línia de Temps Operativa (Events)", level=1)
+        for ev in op_events:
+            p = doc.add_paragraph(style='List Bullet')
+            time_str = ev.get('time', '--:--')
+            event_text = ev.get('event', 'Esdeveniment')
+            details = ev.get('details', '')
+            run = p.add_run(f"[{time_str}] {event_text}")
+            run.bold = True
+            p.add_run(f": {details}")
 
     # --- 2. INSERTAR GRÁFICO ---
     if chart_img:

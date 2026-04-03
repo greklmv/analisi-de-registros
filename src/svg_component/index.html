@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdn.jsdelivr.net/npm/streamlit-component-lib@1.3.0/dist/streamlit.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background-color: transparent; font-family: sans-serif; }
+        #container { width: 100%; display: flex; justify-content: center; align-items: center; }
+        svg { width: 100%; height: auto; display: block; }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <script>
+        const Streamlit = window.Streamlit;
+        function onRender(event) {
+            const svgCode = event.detail.args.svg_code;
+            const container = document.getElementById("container");
+            container.innerHTML = svgCode;
+            
+            const links = container.querySelectorAll("a");
+            links.forEach(a => {
+                a.onclick = (e) => {
+                    e.preventDefault();
+                    const href = a.getAttribute("href");
+                    if (href && href.includes("station_origin=")) {
+                        const params = new URLSearchParams(href.split('?')[1]);
+                        Streamlit.setComponentValue(params.get("station_origin"));
+                    } else if (href === "/") {
+                        Streamlit.setComponentValue("RESET");
+                    }
+                };
+            });
+            Streamlit.setFrameHeight(event.detail.args.height || 270);
+        }
+        Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
+        Streamlit.setComponentReady();
+    </script>
+</body>
+</html>

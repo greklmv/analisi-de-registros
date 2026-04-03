@@ -84,22 +84,52 @@ def load_stations(file_path="src/stations.json"):
         return {}
 
 def get_closest_station(pk, stations_data):
-    """Identifica l'estació més propera per a un PK determinat."""
+    """Identifica l'estació més propera per a un PK determinat amb precisió técnica."""
     if not stations_data:
         return "Tram Obert"
     
-    best_station = "Tram Obert"
-    min_dist = 0.400 # Umbral de 400 metros para considerar que está en la estación
+    best_station = None
+    min_dist = float('inf')
     
+    # Busquem l'estació amb el PK més proper
     for line_info in stations_data.values():
         for st in line_info.get("stations", []):
             st_pk = float(st.get("pk_abs", st.get("pk", 0)))
-            dist = abs(pk - st_pk)
-            if dist < min_dist:
-                min_dist = dist
-                best_station = st.get("name", "---")
-                
-    return best_station
+            dist = pk - st_pk # Diferència real (positiva si hem passat l'estació)
+            abs_dist = abs(dist)
+            
+            if abs_dist < min_dist:
+                min_dist = abs_dist
+                best_station = {
+                    "id": st.get("id", "---"),
+                    "name": st.get("name", "---"),
+                    "pk": st_pk,
+                    "diff": dist
+                }
+    
+    if not best_station:
+        return "Tram Obert"
+    
+    dist_m = best_station["diff"] * 1000
+    abs_dist_m = abs(dist_m)
+    
+    if abs_dist_m < 25: # Umbral de parada en andana (25m)
+        return f"Aturat a {best_station['name']} ({best_station['id']})"
+    elif dist_m > 0:
+        return f"Rebassat {best_station['name']} (+{abs_dist_m:.0f} m)"
+    else:
+        return f"Arribant a {best_station['name']} (-{abs_dist_m:.0f} m)"
+
+def get_all_stations_flat():
+    """Retorna una llista plana de totes les estacions per al selector de la UI."""
+    data = load_stations()
+    flat_list = []
+    for section in data.values():
+        for st in section.get("stations", []):
+            st["display_name"] = f"{st['name']} ({st['id']}) - PK {st.get('pk_abs', st['pk']):.3f}"
+            flat_list.append(st)
+    # Sort by PK abs
+    return sorted(flat_list, key=lambda x: x.get("pk_abs", 0))
 
 def get_sheet_names(uploaded_file):
     """Obté els noms de les fulles d'un fitxer Excel."""
@@ -216,12 +246,17 @@ def segment_by_blocks(df, speed_col='Velocitat'):
         
     return [b for b in blocks if not b.empty]
 
-def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', extra_cols=None):
-    """Agrupa les dades en blocs de 1 minut per a un informe executiu amb distància acumulada i variables dinàmiques."""
+def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', extra_cols=None, starting_pk=None):
+    """Agrupa les dades en blocs per minut amb seguiment de PK absoluta basat en estació d'origen."""
     if df.empty: return []
     if extra_cols is None: extra_cols = []
     
-    # Copy and ensure numeric for calculations
+    # Pre-càlcul del valor inicial d'odòmetre per a increments relatius
+    try:
+        initial_odometer = float(df[km_col].iloc[0])
+    except:
+        initial_odometer = 0.0
+
     df_temp = df.copy()
     df_temp[speed_col] = pd.to_numeric(df_temp[speed_col], errors='coerce').fillna(0)
     df_temp[km_col] = pd.to_numeric(df_temp[km_col], errors='coerce').fillna(0)
@@ -229,46 +264,47 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
     df_temp[time_col] = pd.to_datetime(df_temp[time_col], errors='coerce')
     df_temp = df_temp.set_index(time_col)
     
-    # Resampling per minuts
     resampled = df_temp.resample('1min')
     
     summary = []
     total_acc_dist: float = 0.0
-    last_states = {} # Memòria d'estats per detectar canvis
+    last_states = {}
     stations_data = load_stations()
     
     for timestamp, block in resampled:
         if block is None or block.empty: continue
         
-        # Càlcul de KPIs bàsics
         max_v = block[speed_col].max()
         avg_v = block[speed_col].mean()
         
-        # Valor de l'odòmetre real (Indicació de la UT en m/km) - NO ES REINICIA
         ut_raw = float(block[km_col].iloc[0])
         ut_val = f"{ut_raw * 1000 if ut_raw < 150 else ut_raw:,.1f}"
         
-        # Detecció de la ubicació (estació)
-        current_pk = ut_raw if ut_raw < 150 else ut_raw / 1000
+        # Detecció de la ubicació (estació) amb el nou sistema PK
+        if starting_pk is not None:
+            # PK = PK Origen + (Distància Acumulada / 1000)
+            current_pk = starting_pk + (total_acc_dist / 1000)
+        else:
+            current_pk = ut_raw if ut_raw < 150 else ut_raw / 1000
+            
         loc_name = get_closest_station(current_pk, stations_data)
         
-        # Distància d'aquest minut (delta)
+        # Distància d'aquest minut (delta real entre registres per evitar salts de l'odòmetre)
         delta_km = abs(block[km_col].max() - block[km_col].min())
         delta_m = delta_km * 1000 if delta_km < 150 else delta_km
         
-        # Detecció d'alertes telemètriques bàsiques
+        # Alertes telemètriques...
         alerts = []
         if max_v > 90: alerts.append(f"🔴 EXCÉS VELOCITAT ({max_v:.1f} km/h)")
+        
+        # ... resta d'alertes ... (mantenir la lògica original de canvis d'estat)
         
         v_diff = block[speed_col].diff().fillna(0)
         # Deceleració mitjana en m/s² (aprox)
         decel = (v_diff / 3.6).mean() 
         if any(v_diff < -7): alerts.append("⚠️ FRENADA BRUSCA")
         
-        # DETECCIÓ DE ROLL-BACK
-        km_diff = block[km_col].diff().fillna(0)
-        if any((km_diff < -0.001) & (block[speed_col] > 1)):
-            alerts.append("🔄 DETECTAT ROLL-BACK (Retrocediment)")
+        # DE-DUPLICATED: Roll-back detection now happens at minute summary level
         
         # DETECCIÓ DE CANVIS D'ESTAT (0 <-> 1) en variables seleccionades
         extra_data = {}
@@ -315,6 +351,12 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
             except Exception:
                 extra_data[f"var_{col}"] = "---"
 
+        # Detecció de ROLL-BACK a nivell de fila per a les dades del minut
+        km_diff = block[km_col].diff().fillna(0)
+        has_rb = any((km_diff < -0.001) & (block[speed_col] > 1))
+        if has_rb:
+            alerts.append("🔄 ROLL-BACK")
+
         row = {
             "start_time": pd.to_datetime(timestamp).strftime('%H:%M'),
             "location": loc_name,
@@ -323,6 +365,8 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
             "max_speed": f"{max_v:.1f}",
             "avg_speed": f"{avg_v:.1f}",
             "anomalies": ", ".join(alerts) if alerts else "",
+            "speed_history": block[speed_col].tolist(),
+            "has_rollback": has_rb,
             "count": len(block)
         }
         row.update(extra_data)
@@ -330,6 +374,74 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
         total_acc_dist = float(total_acc_dist) + float(delta_m)  # type: ignore
         
     return summary
+
+def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0):
+    """
+    Genera un resum d'esdeveniments operatius: Sortides i Estacionaments.
+    Ideal per al resum executiu net.
+    """
+    if df.empty: return []
+    
+    # Carreguem dades estacions
+    stations_data = load_stations()
+    
+    # 1. Definir estats: 0 = Parat, 1 = Moviment
+    df_state = df.copy()
+    df_state['is_moving'] = (df_state[speed_col] > 2).astype(int) # Llindar de 2 km/h
+    
+    # 2. Agrupar estats contigus
+    df_state['state_change'] = df_state['is_moving'].diff().fillna(0).abs()
+    df_state['group'] = df_state['state_change'].cumsum()
+    
+    events = []
+    groups = df_state.groupby('group')
+    
+    init_km = df_state[km_col].iloc[0]
+    
+    for i, (name, group) in enumerate(groups):
+        if group.empty: continue
+        
+        is_moving = group['is_moving'].iloc[0] == 1
+        start_time = pd.to_datetime(group[time_col].iloc[0]).strftime('%H:%M:%S')
+        
+        rel_m = (group[km_col].mean() - init_km) * 1000
+        current_pk = starting_pk + (rel_m / 1000)
+        
+        # Buscar estació més propera (necessita stations_data)
+        st_info_str = get_closest_station(current_pk, stations_data)
+        loc_name = st_info_str if st_info_str else "Tram Obert"
+        
+        try:
+            t1 = pd.to_datetime(group[time_col].iloc[0])
+            t2 = pd.to_datetime(group[time_col].iloc[-1])
+            duration_sec = (t2 - t1).total_seconds()
+        except: duration_sec = 0
+            
+        if not is_moving:
+            if duration_sec > 10:
+                events.append({
+                    "time": start_time,
+                    "event": f"🅿️ Estacionat a {loc_name}",
+                    "details": f"Aturat durant {int(duration_sec)}s (PK {current_pk:.3f})",
+                    "pk": current_pk
+                })
+        else:
+            if i > 0:
+                events.append({
+                    "time": start_time,
+                    "event": f"🚀 Sortida de {loc_name}",
+                    "details": f"Velocitat màx: {group[speed_col].max():.1f} km/h (PK {current_pk:.3f})",
+                    "pk": current_pk
+                })
+            else:
+                events.append({
+                    "time": start_time,
+                    "event": f"🚄 En circulació (inici)",
+                    "details": f"Passant per {loc_name} (PK {current_pk:.3f})",
+                    "pk": current_pk
+                })
+
+    return events
 
 def calculate_kpis(df, km_col='KM', speed_col='Velocitat', time_col='Hora'):
     """Calculate KPIs with real time diffs and anomaly detection."""

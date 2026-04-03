@@ -1,8 +1,8 @@
 {
-  "PC-RE": {
-    "name": "Barcelona - Reina Elisenda",
+  "Tronc-Comu-PC-SC": {
+    "name": "Tronc Comú Principal",
     "stations": [
-      {"id": "PC", "name": "Plaça Catalunya", "pk": 0.000},
+      {"id": "PC", "name": "Pl. Catalunya", "pk": 0.000},
       {"id": "PR", "name": "Provença", "pk": 1.220},
       {"id": "GR", "name": "Gràcia", "pk": 2.050},
       {"id": "SG", "name": "Sant Gervasi", "pk": 2.610},
@@ -10,12 +10,18 @@
       {"id": "BN", "name": "La Bonanova", "pk": 3.610},
       {"id": "TT", "name": "Les Tres Torres", "pk": 4.080},
       {"id": "SR", "name": "Sarrià", "pk": 4.610},
-      {"id": "RE", "name": "Reina Elisenda", "pk": 5.160}
+      {"id": "PF", "name": "Peu del Funicular", "pk": 7.720},
+      {"id": "VL", "name": "Baixador de Vallvidrera", "pk": 8.370},
+      {"id": "LP", "name": "Les Planes", "pk": 9.320},
+      {"id": "LF", "name": "La Floresta", "pk": 12.170},
+      {"id": "VD", "name": "Valldoreix", "pk": 13.860},
+      {"id": "SC", "name": "Sant Cugat Centre", "pk": 15.310}
     ]
   },
-  "GR-TB": {
-    "name": "Ramal Av. Tibidabo",
+  "Ramal-L7": {
+    "name": "Ramal Tibidabo (L7)",
     "origin": "GR",
+    "layout": "down",
     "stations": [
       {"id": "PM", "name": "Pl. Molina", "pk": 0.600},
       {"id": "PD", "name": "Pàdua", "pk": 1.010},
@@ -23,35 +29,35 @@
       {"id": "TB", "name": "Av. Tibidabo", "pk": 1.860}
     ]
   },
-  "SR-LP": {
-    "name": "Sarrià - Les Planes",
+  "Ramal-L12": {
+    "name": "Ramal Reina Elisenda (L12)",
     "origin": "SR",
+    "layout": "up",
     "stations": [
-      {"id": "PF", "name": "Peu del Funicular", "pk": 3.110},
-      {"id": "VL", "name": "Baixador de Vallvidrera", "pk": 3.760},
-      {"id": "LP", "name": "Les Planes", "pk": 4.710}
+      {"id": "RE", "name": "Reina Elisenda", "pk": 0.550}
     ]
   },
-  "LP-TR-NA": {
-    "name": "Vallès - Terrassa",
-    "origin": "LP",
-    "stations": [
-      {"id": "LF", "name": "La Floresta", "pk": 2.850},
-      {"id": "VD", "name": "Valldoreix", "pk": 4.540},
-      {"id": "SC", "name": "Sant Cugat Centre", "pk": 5.990},
-      {"id": "MS", "name": "Mira-sol", "pk": 7.510},
-      {"id": "HG", "name": "Hospital General", "pk": 9.050},
-      {"id": "RB", "name": "Rubí Centre", "pk": 10.890},
-      {"id": "FN", "name": "Les Fonts", "pk": 15.810},
-      {"id": "TR", "name": "Terrassa Rambla", "pk": 20.150},
-      {"id": "VP", "name": "Vallparadís Universitat", "pk": 21.670},
-      {"id": "EN", "name": "Terrassa Estació del Nord", "pk": 22.585},
-      {"id": "NA", "name": "Terrassa Nacions Unides", "pk": 23.852}
-    ]
-  },
-  "SC-PN": {
-    "name": "Ramal Sabadell",
+  "Ramal-S1-Terrassa": {
+    "name": "Línia S1 (Terrassa)",
     "origin": "SC",
+    "layout": "up",
+    "end_label": "Can Roca",
+    "stations": [
+      {"id": "MS", "name": "Mira-sol", "pk": 1.520},
+      {"id": "HG", "name": "Hospital General", "pk": 3.060},
+      {"id": "RB", "name": "Rubí Centre", "pk": 4.900},
+      {"id": "FN", "name": "Les Fonts", "pk": 9.820},
+      {"id": "TR", "name": "Terrassa Rambla", "pk": 14.160},
+      {"id": "VP", "name": "Vallparadís Universitat", "pk": 15.680},
+      {"id": "EN", "name": "Terrassa Estació del Nord", "pk": 16.595},
+      {"id": "NA", "name": "Terrassa Nacions Unides", "pk": 17.862}
+    ]
+  },
+  "Ramal-S2-Sabadell": {
+    "name": "Línia S2 (Sabadell)",
+    "origin": "SC",
+    "layout": "down",
+    "end_label": "Ca N'O",
     "stations": [
       {"id": "VO", "name": "Volpelleres", "pk": 1.532},
       {"id": "SJ", "name": "Sant Joan", "pk": 2.730},
