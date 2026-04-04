@@ -212,18 +212,24 @@ def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
     return svg
 
 def main():
+    # 1. Gestió d'estat inicial
+    if 'selected_vars' not in st.session_state: st.session_state.selected_vars = []
+    if 'processed_data' not in st.session_state: st.session_state.processed_data = None
+    if 'last_loaded_key' not in st.session_state: st.session_state.last_loaded_key = None
+    if 'filtered_df' not in st.session_state: st.session_state.filtered_df = None
+    if 'selected_st_ui' not in st.session_state: st.session_state.selected_st_ui = "Cap (Ús PK Absolut)"
+
+    # 2. Interacció amb el Mapa (Query Params)
     if "station_origin" in st.query_params:
         target_id = st.query_params["station_origin"]
         all_st = get_all_stations_flat()
         found = next((s for s in all_st if s["id"] == target_id), None)
-        if found:
+        if found and found["display_name"] != st.session_state.selected_st_ui:
             st.session_state.selected_st_ui = found["display_name"]
             st.query_params.clear()
             st.rerun()
-
-    if 'selected_vars' not in st.session_state: st.session_state.selected_vars = []
-    if 'processed_data' not in st.session_state: st.session_state.processed_data = None
-    if 'last_loaded_key' not in st.session_state: st.session_state.last_loaded_key = None
+        elif found:
+            st.query_params.clear()
 
     with st.sidebar:
         st.markdown(f'<div style="text-align:center; margin-bottom:20px;"><img src="data:image/png;base64,{logo_base64}" width="100" style="border-radius:15px;"></div>', unsafe_allow_html=True)
@@ -234,9 +240,9 @@ def main():
         st.markdown("---")
         st.markdown("### 🎯 Anàlisi Ràpid")
         def apply_rapid_vars(analysis_type):
-            df = st.session_state.get("processed_data")
-            if df is None: return
-            cols = df.columns.tolist()
+            df_curr = st.session_state.get("processed_data")
+            if df_curr is None: return
+            cols = df_curr.columns.tolist()
             selected = []
             if analysis_type == "estacio":
                 for c in cols:
@@ -254,6 +260,7 @@ def main():
                     if any(k in cn for k in ["ATP", "ATO", "MODE"]): selected.append(c)
             st.session_state.selected_vars = list(dict.fromkeys(selected))
             st.rerun()
+
         rb_c1, rb_c2 = st.columns(2)
         if rb_c1.button("🚉 Ultrap. Estació", use_container_width=True): apply_rapid_vars("estacio")
         if rb_c1.button("🕹️ Mode Conducció", use_container_width=True): apply_rapid_vars("conduccio")
@@ -262,6 +269,29 @@ def main():
             st.session_state.selected_vars = []
             st.rerun()
 
+        if st.session_state.processed_data is not None:
+            st.markdown("---")
+            st.markdown("### 🕒 Filtre Temporal")
+            df_full = st.session_state.processed_data
+            t_col_temp = next((c for c in df_full.columns if any(k in str(c).upper() for k in ['TIME', 'HORA'])), df_full.columns[0])
+            raw_t_full = df_full[t_col_temp].astype(str).str.replace(' - ', ' ', regex=False)
+            temp_ts_full = pd.to_datetime(raw_t_full, dayfirst=True, errors='coerce')
+            times_full = temp_ts_full.dt.strftime('%H:%M:%S').tolist()
+            
+            t_start, t_end = st.select_slider(
+                "Selecciona l'interval horari:",
+                options=times_full,
+                value=(times_full[0], times_full[-1]),
+                key="time_filter_slider"
+            )
+            
+            idx_s = times_full.index(t_start)
+            idx_e = times_full.index(t_end)
+            if idx_s > idx_e: idx_s, idx_e = idx_e, idx_s
+            st.session_state.filtered_df = df_full.iloc[idx_s:idx_e+1]
+        else:
+            st.session_state.filtered_df = None
+
     st.markdown(f'<div style="display:flex; justify-content:space-between; align-items:center;"><div><h1>ANALISTA OTMR <span style="color:#0052A3">PRO</span></h1><p style="margin:0; font-size:0.75rem; color:#64748b; font-weight:800;">DEPARTAMENT OPERATIU - FERROCARRILS DE LA GENERALITAT DE CATALUNYA</p></div><div class="status-badge"><div class="pulse-dot"></div> MONITORITZACIÓ ACTIVA</div></div>', unsafe_allow_html=True)
     st.markdown("---")
 
@@ -269,19 +299,30 @@ def main():
     ctx_c1, ctx_c2, ctx_c3 = st.columns([1,1,1.2])
     with ctx_c1: st.selectbox("Tracks / Línia:", ["S1 (Terrassa)", "S2 (Sabadell)", "L6 (Sarrià)", "L7 (Tibidabo)", "L12 (RE)", "Totes"], key="active_line")
     with ctx_c2: st.selectbox("Sentit de la marxa:", ["Ascendent", "Descendent"], key="active_direction")
-    with ctx_c3: st.selectbox("📍 Origen (Calibratge PK):", ["Cap (Ús PK Absolut)"] + [s["display_name"] for s in get_all_stations_flat()], key="selected_st_ui")
+    
+    st_options = ["Cap (Ús PK Absolut)"] + [s["display_name"] for s in get_all_stations_flat()]
+    st_idx = st_options.index(st.session_state.selected_st_ui) if st.session_state.selected_st_ui in st_options else 0
+    with ctx_c3: st.selectbox("📍 Origen (Calibratge PK):", st_options, index=st_idx, key="selectbox_st_ui", on_change=lambda: st.session_state.update(selected_st_ui=st.session_state.selectbox_st_ui))
 
     key_id = "DEMOFIX" if demo_mode else (uploaded_file.name if uploaded_file else None)
     if key_id and (st.session_state.processed_data is None or key_id != st.session_state.last_loaded_key):
         df = load_data(uploaded_file if not demo_mode else "MOCK_FGC")
         st.session_state.processed_data, st.session_state.last_loaded_key = df, key_id
 
-    if st.session_state.processed_data is not None:
-        df = st.session_state.processed_data
-        speed_col = next((c for c in df.columns if any(k in str(c).upper() for k in ['VEL', 'SPEED', 'AAA'])), df.columns[0])
-        km_col = next((c for c in df.columns if any(k in str(c).upper() for k in ['DIST', 'KM', 'PK'])), df.columns[1])
-        time_col = next((c for c in df.columns if any(k in str(c).upper() for k in ['TIME', 'HORA'])), df.columns[2])
+    # Obtenir el DF adequat segons el filtre
+    df = st.session_state.get("filtered_df")
+    if df is None:
+        df = st.session_state.get("processed_data")
+
+    if df is not None:
+        speed_col = next((c for c in df.columns if any(k in str(c).upper() for k in ['VEL', 'SPEED', 'AAA'])), df.columns[0] if len(df.columns) > 0 else None)
+        km_col = next((c for c in df.columns if any(k in str(c).upper() for k in ['DIST', 'KM', 'PK'])), df.columns[1] if len(df.columns) > 1 else (df.columns[0] if len(df.columns) > 0 else None))
+        time_col = next((c for c in df.columns if any(k in str(c).upper() for k in ['TIME', 'HORA'])), df.columns[2] if len(df.columns) > 2 else (df.columns[0] if len(df.columns) > 0 else None))
         ato_col = next((c for c in df.columns if "ATO" in str(c).upper()), None)
+
+        if not speed_col or not km_col or not time_col:
+            st.error("⚠️ El fitxer no conté les columnes mínimes requerides (Velocitat, PK/Distància, Temps).")
+            st.stop()
 
         raw_t = df[time_col].astype(str).str.replace(' - ', ' ', regex=False)
         temp_ts = pd.to_datetime(raw_t, dayfirst=True, errors='coerce')
@@ -311,18 +352,32 @@ def main():
         closest_sig, sig_dist = get_closest_signal(pk_abs, signals_data)
         next_sig_str = f"{closest_sig['id']} ({sig_dist*1000:.0f}m)" if closest_sig else "---"
 
-        st.markdown(f'<div class="top-schematic">{render_network_schematic(origin_id, pos_id, signals_data)}</div>', unsafe_allow_html=True)
+        from src.svg_component import interactive_svg
+        svg_code = render_network_schematic(origin_id, pos_id, signals_data)
+        clicked_station = interactive_svg(svg_code=svg_code, height=420, key="svg_map")
+
+        if clicked_station and clicked_station != "RESET":
+            all_st = get_all_stations_flat()
+            found = next((s for s in all_st if s["id"] == clicked_station), None)
+            if found and found["display_name"] != st.session_state.selected_st_ui:
+                st.session_state.selected_st_ui = found["display_name"]
+                st.rerun()
+
         st.markdown(f'<p style="text-align:center; font-weight:800; color:#0052A3; margin-top:-20px; margin-bottom:25px;">📍 POSICIÓ ACTUAL: {closest}</p>', unsafe_allow_html=True)
 
         k_cols = st.columns(5)
         k_cols[0].markdown(f'<div class="cockpit-card"><div class="kpi-label">🚀 Velocitat</div><div class="kpi-value">{float(point[speed_col]):.1f}<span class="kpi-unit">KM/H</span></div></div>', unsafe_allow_html=True)
         k_cols[1].markdown(f'<div class="cockpit-card"><div class="kpi-label">📏 Posició PK</div><div class="kpi-value">{pk_abs:.3f}<span class="kpi-unit">KM</span></div></div>', unsafe_allow_html=True)
-        k_cols[2].markdown(f'<div class="cockpit-card"><div class="kpi-label">🕒 Temps</div><div class="kpi-value">{times_l[cursor_idx]}</div></div>', unsafe_allow_html=True)
+        
+        dist_recorreguda = abs(float(point[km_col]) - float(df.iloc[0][km_col]))
+        k_cols[2].markdown(f'<div class="cockpit-card"><div class="kpi-label">🛤️ Dist. Recorreguda</div><div class="kpi-value">{dist_recorreguda:.3f}<span class="kpi-unit">KM</span></div></div>', unsafe_allow_html=True)
+        
         mode = "🤖 ATO" if (ato_col and point[ato_col]==1) else "⚙️ ATP"
         k_cols[3].markdown(f'<div class="cockpit-card"><div class="kpi-label">🕹️ Mode Actiu</div><div class="kpi-value" style="color:{"#10b981" if "ATO" in mode else "#0052A3"}">{mode}</div></div>', unsafe_allow_html=True)
         k_cols[4].markdown(f'<div class="cockpit-card"><div class="kpi-label">🚦 Propera Senyal</div><div class="kpi-value">{next_sig_str}</div></div>', unsafe_allow_html=True)
 
-        st.multiselect("Senyals de Control:", df.columns.tolist(), key="selected_vars")
+        st.multiselect("Senyals de Control:", df.columns.tolist(), key="selected_vars_ui", default=st.session_state.selected_vars)
+        st.session_state.selected_vars = st.session_state.selected_vars_ui
         
         from plotly.subplots import make_subplots
         fig = make_subplots(rows=2 if st.session_state.selected_vars else 1, shared_xaxes=True)

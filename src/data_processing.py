@@ -493,6 +493,10 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0, line
     
     # 1. Definir estats: 0 = Parat, 1 = Moviment
     df_state = df.copy()
+    # Assegurem tipus numèrics per evitar TypeError entre str i int
+    df_state[speed_col] = pd.to_numeric(df_state[speed_col], errors='coerce').fillna(0)
+    df_state[km_col] = pd.to_numeric(df_state[km_col], errors='coerce').fillna(0)
+    
     df_state['is_moving'] = (df_state[speed_col] > 2).astype(int) # Llindar de 2 km/h
     
     # 2. Agrupar estats contigus
