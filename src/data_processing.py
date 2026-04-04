@@ -380,6 +380,67 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
         
     return summary
 
+def calculate_pk_at_index(idx, df, km_col, starting_pk, is_ascendant):
+    """Calcula la PK exacta d'un índex del dataframe basat en la distància acumulada."""
+    if starting_pk is None: return 0
+    init_km = df[km_col].iloc[0]
+    curr_km = df[km_col].loc[idx]
+    dist_km = (curr_km - init_km)
+    return starting_pk + (dist_km if is_ascendant else -dist_km)
+
+def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0, is_ascendant=True, line_filter=None):
+    """
+    Detecta automàticament punts crítics en la telemetria:
+    - FU (Fre d'Urgència) o Bolet (Seta).
+    - Sobrevelocitats (> 90 km/h).
+    """
+    anomalies = []
+    if df.empty: return anomalies
+    
+    # Mapping de variables de seguretat
+    fu_cols = [c for c in df.columns if any(k in str(c).upper() for k in ["FU", "FRE D'URGÈNCIA", "URGENCIA", "N-FE"])]
+    bolet_cols = [c for c in df.columns if any(k in str(c).upper() for k in ["BOLET", "SETA", "EMERGÈNCIA", "EMERGENCIA"])]
+    
+    # 1. Detectar Sobrevelocitat (> 90.5 km/h per evitar soroll)
+    over_speed = df[df[speed_col] > 90.5]
+    if not over_speed.empty:
+        # Agrupar punts consecutius
+        diff = over_speed.index.to_series().diff().fillna(1)
+        groups = (diff > 10).cumsum() # Blocs separats per 10 segons
+        for _, g in over_speed.groupby(groups):
+            t_start = pd.to_datetime(g[time_col].iloc[0]).strftime('%H:%M:%S')
+            v_max = g[speed_col].max()
+            idx_max = g[speed_col].idxmax()
+            pk_val = calculate_pk_at_index(idx_max, df, km_col, starting_pk, is_ascendant)
+            anomalies.append({
+                "time": t_start,
+                "event": "🚀 SOBREVELOCITAT",
+                "details": f"Velocitat màxima de {v_max:.1f} km/h (Límit 90).",
+                "type": "SOBREVELOCITAT",
+                "pk": pk_val,
+                "severity": "Alta"
+            })
+            
+    # 2. Detectar FU / Bolet (Canvis 0 -> 1)
+    for col in list(dict.fromkeys(fu_cols + bolet_cols)):
+        vals = pd.to_numeric(df[col], errors='coerce').fillna(0)
+        activates = df[(vals.shift(1) == 0) & (vals == 1)]
+        for idx, row in activates.iterrows():
+            t = pd.to_datetime(row[time_col]).strftime('%H:%M:%S')
+            pk_val = calculate_pk_at_index(idx, df, km_col, starting_pk, is_ascendant)
+            is_fu = any(k in str(col).upper() for k in ["FU", "URGÈNCIA", "URGENCIA"])
+            label = "⚠️ FRE D'URGÈNCIA" if is_fu else "🚨 BOLET / EMERGÈNCIA"
+            anomalies.append({
+                "time": t,
+                "event": label,
+                "details": f"Activació de {col} a {row[speed_col]:.1f} km/h.",
+                "type": "SEGURETAT",
+                "pk": pk_val,
+                "severity": "Crítica"
+            })
+            
+    return sorted(anomalies, key=lambda x: x['time'])
+
 def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0, line_filter=None, is_ascendant=True):
     """
     Genera un resum d'esdeveniments operatius: Sortides i Estacionaments.
@@ -456,7 +517,19 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0, line
                     "mode": mode_l
                 })
 
-    return events
+    # --- INTEGRACIÓ D'ANOMALIES ---
+    anomalies = detect_anomalies(df_state, speed_col, km_col, time_col, starting_pk, is_ascendant, line_filter)
+    for a in anomalies:
+        events.append({
+            "time": a["time"],
+            "event": a["event"],
+            "details": f"{a['details']} (PK {a['pk']:.3f})",
+            "pk": a["pk"],
+            "is_anomaly": True,
+            "severity": a["severity"]
+        })
+
+    return sorted(events, key=lambda x: x['time'])
 
 def calculate_kpis(df, km_col='KM', speed_col='Velocitat', time_col='Hora'):
     """Calculate KPIs with real time diffs and anomaly detection."""

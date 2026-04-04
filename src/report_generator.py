@@ -3,8 +3,9 @@ from docx.shared import Inches, Pt  # type: ignore
 import matplotlib.pyplot as plt
 import io
 import os
+import pandas as pd
 
-def create_sparkline(data, color='#00d2ff'):
+def create_sparkline(data, color='#0052A3'):
     """Genera una imagen de mini-gráfico (sparkline) para insertar en el Word."""
     plt.figure(figsize=(1.5, 0.4))
     plt.plot(data, color=color, linewidth=1.5)
@@ -17,159 +18,82 @@ def create_sparkline(data, color='#00d2ff'):
     return buf
 
 def safe_add_heading(doc, text, level):
-    """Añade un encabezado de forma segura, evitando errores de estilos inexistentes (Heading 1 vs Título 1)."""
+    """Añade un encabezado de forma segura."""
     try:
         doc.add_heading(text, level=level)
     except Exception:
-        # Fallback si el estilo no existe en la plantilla
         p = doc.add_paragraph()
         run = p.add_run(text)
         run.bold = True
-        run.font.size = Inches(0.2) if level == 1 else Inches(0.15)
+        run.font.size = Pt(14) if level == 1 else Pt(12)
 
 def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_events=None, template_path="/Users/grek/IA/Analisis registros/plantilla informe registros.docx"):
-    """
-    Genera el informe Word utilizando una plantilla base avanzada con detección de anomalías y gráficos.
-    """
+    """Genera el informe Word con deteccion de eventos y zoom plots."""
     if not os.path.exists(template_path):
         doc = Document()
         doc.add_heading("INFORME D'ANÀLISI TELEMÈTRICA", 0)
     else:
         doc = Document(template_path)
 
-    # --- 1. ACTUALIZAR METADATOS Y LIMPIEZA DE TABLAS ---
+    # 1. Metadatos
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
-                text = cell.text.upper()
-                if "MOTIU:" in text: cell.text = f"MOTIU: {project_info.get('motiu', '')}"
-                elif "LLOC:" in text: cell.text = "LLOC: "
-                elif "DATA:" in text: cell.text = "DATA: "
-                elif "HORA:" in text: cell.text = "HORA: "
-                elif "TREN:" in text: cell.text = "TREN: "
-                elif "UT:" in text: cell.text = f"UT: {project_info.get('ut', '')}"
-                elif "AGENT DE CONDUCCIÓ:" in text: cell.text = "AGENT DE CONDUCCIÓ: "
-                elif "ANÀLISI DE REGISTRE" in text:
-                    cell.text = f"ANÀLISI DE REGISTRE: {notes if notes else ''}"
-                elif "SIGNAT" in text and "NOM" in text:
-                    cell.text = "SIGNAT (NOM I COGNOM): "
+                t = cell.text.upper()
+                if "UT:" in t: cell.text = f"UT: {project_info.get('u', '')}"
+                elif "ANÀLISI DE REGISTRE:" in t: cell.text = f"ANÀLISI DE REGISTRE: {notes if notes else ''}"
 
-    # --- 1b. LIMPIEZA DE "ANÀLISI DELS REGISTRES" EN EL CUERPO DEL DOCUMENTO ---
-    # Buscamos la sección de análisis y eliminamos los puntos por defecto
-    target_found = False
-    paragraphs_to_remove = []
-    
-    # Textos por defecto a eliminar (según imagen del usuario)
-    defaults = [
-        "Es realitza tota la circulació en mode ATP",
-        "El maquinista no actua sobre el bolet",
-        "En cap moment entra l'anti bloqueig",
-        "El maquinista ultrapassa l'estació"
-    ]
+    # 2. Análisis del cuerpo
+    for p in doc.paragraphs:
+        if "Anàlisi dels registres" in p.text:
+            p.add_run(f"\n\n{notes if notes else '(Sense observacions)'}")
+            break
 
-    for i, p in enumerate(doc.paragraphs):
-        p_text = p.text.strip()
-        
-        # Si encontramos el encabezado, marcamos para insertar notas
-        if "Anàlisi dels registres" in p_text:
-            target_found = True
-            # Limpiamos el texto del encabezado por si tiene basura, pero mantenemos el párrafo
-            # p.text = "Anàlisi dels registres:" 
-            continue
-            
-        if target_found:
-            # Si el párrafo contiene alguno de los textos por defecto, lo marcamos para borrar
-            is_default = any(d.lower() in p_text.lower() for d in defaults)
-            if is_default or (p_text and p_text[0].isdigit() and "." in p_text[:3]):
-                paragraphs_to_remove.append(p)
-            elif p_text == "" and len(paragraphs_to_remove) < 10: # Seguir limpiando espacios vacíos inmediatos
-                paragraphs_to_remove.append(p)
-            else:
-                # Si encontramos texto que NO es por defecto ni un número de lista, paramos de limpiar
-                if p_text != "":
-                    break
-
-    # Insertar las notas del usuario si existen
-    if target_found:
-        # Buscamos el párrafo del título otra vez para insertar justo después
-        for p in doc.paragraphs:
-            if "Anàlisi dels registres" in p.text:
-                new_p = p.insert_paragraph_before("") # Hack para insertar después: creamos uno antes y movemos? 
-                # En python-docx es difícil insertar después. Usaremos el último párrafo eliminado como ancla o simplemente añadiremos al final si no hay ancla.
-                if notes:
-                    p.add_run(f"\n\n{notes}")
-                else:
-                    p.add_run("\n\n(No s'han afegit observacions)")
-                break
-
-    # Eliminamos físicamente los párrafos marcados (puntos por defecto)
-    for p in paragraphs_to_remove:
-        p.text = "" # No se puede borrar fácilmente, así que vaciamos el texto
-
-    # --- 1c. LÍNIA DE TEMPS OPERATIVA (Nou) ---
+    # 3. Línia de Temps + Zooms
     if op_events:
-        safe_add_heading(doc, "Línia de Temps Operativa (Events)", level=1)
+        safe_add_heading(doc, "Línia de Temps Operativa", level=1)
         for ev in op_events:
             p = doc.add_paragraph(style='List Bullet')
-            time_str = ev.get('time', '--:--')
-            event_text = ev.get('event', 'Esdeveniment')
-            details = ev.get('details', '')
-            run = p.add_run(f"[{time_str}] {event_text}")
+            t_str = ev.get('time', '--:--')
+            e_txt = ev.get('event', 'Event')
+            run = p.add_run(f"[{t_str}] {e_txt}")
             run.bold = True
-            p.add_run(f": {details}")
+            p.add_run(f": {ev.get('details', '')}")
+            
+            # Zoom si es anomalia o canvi real
+            if ev.get('is_anomaly') or "Canvi" in e_txt or "Sortida" in e_txt:
+                try:
+                    time_col = df.columns[0] # Assumpció de temps
+                    # Cercar index aproximat
+                    idx = (df[time_col].astype(str).str.contains(t_str)).idxmax()
+                    z_df = df.iloc[max(0, idx-20):min(len(df), idx+20)]
+                    plt.figure(figsize=(5, 1.8))
+                    plt.plot(range(len(z_df)), z_df[df.columns[1]], color='#0052A3')
+                    plt.axvline(x=len(z_df)//2, color='red', linestyle='--')
+                    plt.title(f"Zoom: {e_txt}", fontsize=9)
+                    z_buf = io.BytesIO()
+                    plt.savefig(z_buf, format='png', bbox_inches='tight')
+                    plt.close()
+                    doc.add_picture(z_buf, width=Inches(3.5))
+                except: pass
 
-    # --- 2. INSERTAR GRÁFICO ---
+    # 4. Gràfic General
     if chart_img:
-        safe_add_heading(doc, "Visualització Telemètrica", level=1)
-        doc.add_picture(io.BytesIO(chart_img), width=Inches(6.0))
-        doc.add_paragraph("Llegenda: Canal de velocitat (blau), consigna (vermell - si existeix).")
+        safe_add_heading(doc, "Visualització Telemetria General", level=1)
+        doc.add_picture(io.BytesIO(chart_img), width=Inches(5.8))
 
-    # --- 3. ACTUALIZAR DATOS DE BLOQUES (Tabla 1) ---
-    if len(doc.tables) > 1:
-        data_table = doc.tables[1]
-        # Limpiar filas excepto cabecera
-        while len(data_table.rows) > 1:
-            tbl = data_table._tbl
-            tr = data_table.rows[-1]._tr
-            tbl.remove(tr)
+    # 5. Taula Kpis (Opcional si es vol detallar)
+    if kpis and len(doc.tables) > 1:
+        tbl = doc.tables[1]
+        for row in kpis[:15]: # Limitar a 15 minuts per no fer-lo infinit
+            r = tbl.add_row().cells
+            r[0].text = row.get('start_time','--')
+            r[3].text = row.get('distance','0')
+            r[4].text = row.get('max_speed','0')
+            r[6].text = row.get('anomalies','')
 
-        if isinstance(kpis, list):
-            for entry in kpis:
-                row_cells = data_table.add_row().cells
-                row_cells[0].text = str(entry.get('start_time', '---'))
-                
-                # Inserir Ubicació/Estació si la taula té prou espai (més de 6 columnes)
-                col_offset = 0
-                if len(row_cells) > 6:
-                    row_cells[1].text = str(entry.get('location', 'Tram Obert'))
-                    col_offset = 1
-                
-                row_cells[col_offset + 1].text = str(entry.get('ut_indicator', '---'))
-                row_cells[col_offset + 2].text = str(entry.get('distance', '0 m'))
-                row_cells[col_offset + 3].text = str(entry.get('max_speed', '0'))
-                row_cells[col_offset + 4].text = str(entry.get('avg_speed', '0'))
-                
-                # Inserir Sparkline si hi ha dades
-                speed_history = entry.get('speed_history', [])
-                if len(row_cells) > (col_offset + 5) and len(speed_history) > 2:
-                    spark_buf = create_sparkline(speed_history)
-                    paragraph = row_cells[col_offset + 5].paragraphs[0]
-                    run = paragraph.add_run()
-                    run.add_picture(spark_buf, width=Inches(1.0))
-
-                # Alertes (Anomalies)
-                obs_final = entry.get('anomalies', '')
-                if entry.get('has_rollback'):
-                    obs_final = "⚠️ ROLL-BACK DETECTAT! " + obs_final
-                
-                target_cell = col_offset + 6
-                if target_cell < len(row_cells):
-                    row_cells[target_cell].text = obs_final
-
-    # --- 4. FIN DEL DOCUMENTO ---
-    doc.add_paragraph("\nInforme generat pel Sistema d'Anàlisi OTMR v4.96")
-
-    buffer = io.BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer
+    doc.add_paragraph(f"\nGenerat automàticament OTMR PRO v4.96 - {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf
