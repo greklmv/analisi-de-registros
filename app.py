@@ -14,6 +14,7 @@ import time
 import numpy as np
 from datetime import datetime
 import os
+import base64
 
 # --- CONFIGURACIÓ DE LA PÀGINA ---
 st.set_page_config(
@@ -24,6 +25,16 @@ st.set_page_config(
 
 # --- CONFIGURACIÓ DE TEMA I ESTILS DINÀMICS ---
 if 'theme_mode' not in st.session_state: st.session_state.theme_mode = "CLAR (Swiss)"
+
+def get_base64_of_bin_file(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+# LOGO BASE64 (per al header)
+logo_base64 = ""
+if os.path.exists("assets/logo.png"):
+    logo_base64 = get_base64_of_bin_file("assets/logo.png")
 
 # --- DEFINICIÓ DE TEMES ---
 THEMES = {
@@ -201,6 +212,17 @@ st.markdown(f"""
     .stButton>button:hover {{
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(0, 210, 255, 0.4) !important;
+    }}
+
+    /* Botons del sidebar més compactes */
+    [data-testid="stSidebar"] .stButton>button {{
+        padding: 0.4rem 1rem !important;
+        font-size: 0.7rem !important;
+        border-radius: 8px !important;
+        letter-spacing: 0.05em !important;
+    }}
+    [data-testid="stSidebar"] .stButton>button:hover {{
+        transform: translateY(-1px);
     }}
 
     .status-badge {{ 
@@ -409,7 +431,7 @@ def main():
         with h_col1:
             st.markdown(f"""
                 <div style="display: flex; align-items: center; gap: 20px;">
-                    <div style="background: {t['primary']}; width: 4px; height: 45px; border-radius: 10px;"></div>
+                    <img src="data:image/png;base64,{logo_base64}" width="100" style="border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); border: 2px solid #ffffff;">
                     <div>
                         <h1 style="margin: 0; padding: 0; line-height: 1.1;">ANALISTA OTMR <span style="color: {t['primary']}; opacity: 0.8;">PRO</span></h1>
                         <p style="margin: 0; color: {t['on_surface_variant']}; font-weight: 600; font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase;">
@@ -429,39 +451,83 @@ def main():
 
     st.markdown('<div style="margin-top: 1.5rem; margin-bottom: 2.5rem; border-bottom: 2px solid var(--outline-variant); opacity: 0.3;"></div>', unsafe_allow_html=True)
 
+    # 0. Preparació de dades de context (Estacions i Filtre de Línia)
+    all_st_flat = get_all_stations_flat()
+    st_names = [s["display_name"] for s in all_st_flat]
+    options_st = ["Cap (Ús PK Absolut)"] + st_names
+
+    # Mapa de Seccions de Línia per a filtratge de dades (Garanteix que S1 no mostri estacions de S2)
+    LINE_SECTIONS = {
+        "S1 (Terrassa)": ["Tronc-Comu-PC-SC", "Ramal-S1-Terrassa"],
+        "S2 (Sabadell)": ["Tronc-Comu-PC-SC", "Ramal-S2-Sabadell"],
+        "L6 (Sarrià)": ["Tronc-Comu-PC-SC"],
+        "L7 (Tibidabo)": ["Tronc-Comu-PC-SC", "Ramal-L7"],
+        "L12 (R.Elisenda)": ["Tronc-Comu-PC-SC", "Ramal-L12"],
+        "Totes": None
+    }
+
+    # --- CONFIGURACIÓ DE CONTEXT (DROPDOWNS) ---
+    st.markdown("### 🗺️ Context de l'Anàlisi")
+    ctx_c1, ctx_c2, ctx_c3 = st.columns([1, 1, 1.2])
+    with ctx_c1:
+        line_options = list(LINE_SECTIONS.keys())
+        st.selectbox("🛤️ Línia d'Anàlisi:", options=line_options, key="active_line")
+    
+    with ctx_c2:
+        direction_options = ["Ascendent", "Descendent"]
+        sel_dir = st.selectbox("↕️ Sentit de la marxa:", options=direction_options, key="active_direction")
+        is_ascendant = "Ascendent" in sel_dir
+    
+    current_line_filter = LINE_SECTIONS.get(st.session_state.get("active_line", "Totes"))
+    
+    with ctx_c3:
+        # Sincronització de l'estat per evitar el bug de desselecció
+        if "selected_st_ui" not in st.session_state or st.session_state.selected_st_ui not in options_st:
+            st.session_state.selected_st_ui = "Cap (Ús PK Absolut)"
+            
+        sel_st_name = st.selectbox(
+            "📍 Estació d'Origen (Calibratge PK):", 
+            options=options_st,
+            key="selected_st_ui"
+        )
+
+    # Càlcul del PK de referència base per al mapa i anàlisi
+    selected_starting_pk = None
+    origin_st_id = None
+    if sel_st_name != "Cap (Ús PK Absolut)":
+        sel_st_obj = next((s for s in all_st_flat if s["display_name"] == sel_st_name), None)
+        if sel_st_obj:
+            selected_starting_pk = float(sel_st_obj.get("pk_abs", sel_st_obj.get("pk", 0)))
+            st.session_state.origin_st_info = sel_st_obj
+            origin_st_id = sel_st_obj["id"]
+    else:
+        st.session_state.origin_st_info = None
+
     # --- MAPA TÈCNIC INTERACTIU (SEMPRE VISIBLE) ---
     current_st_id = None
-    origin_st_id = None
     
-    # 1. Obtenir ID d'origen des del selector
-    current_sel = st.session_state.get("selected_st_ui", "Cap")
-    if "(" in current_sel:
-        origin_st_id = current_sel.split("(")[-1].split(")")[0]
-
-    # 2. Obtenir ID de posició actual (si hi ha dades processades)
+    # Obtenir ID de posició actual si hi ha dades per mostrar on és el tren al mapa
     if st.session_state.get("processed_data") is not None:
         try:
-            df = st.session_state.processed_data
-            # Busquem km_col si ja s'ha detectat
+            df_pos = st.session_state.processed_data
             km_col = st.session_state.get("km_col")
-            if km_col and km_col in df.columns:
-                last_pk = df[km_col].iloc[-1]
+            if km_col and km_col in df_pos.columns:
+                last_pk = df_pos[km_col].iloc[-1]
                 s_data = load_stations()
-                closest_str = get_closest_station(last_pk, s_data)
+                closest_str = get_closest_station(last_pk, s_data, line_filter=current_line_filter)
                 if "(" in closest_str:
                     current_st_id = closest_str.split("(")[-1].split(")")[0]
         except: pass
 
     svg_code = render_network_schematic(origin_id=origin_st_id, pos_id=current_st_id)
     if svg_code:
-        # Evitem que Streamlit interpreti la indentació HTML com un bloc de codi Markdown
         svg_code_clean = "".join([line.strip() for line in svg_code.split("\n")])
         st.markdown(f'<div class="top-schematic">{svg_code_clean}</div>', unsafe_allow_html=True)
 
     st.markdown('<div style="margin-bottom: 2rem;"></div>', unsafe_allow_html=True)
 
     # --- SIDEBAR ---
-    st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/4/4b/FGC_original_logo.svg", width=120)
+    st.sidebar.image("assets/logo.png", use_container_width=True)
     
     st.sidebar.markdown("---")
 
@@ -474,13 +540,58 @@ def main():
     demo_mode = st.sidebar.toggle("Mode Demo (Simulació)", value=False)
     
     st.sidebar.markdown("### 🎯 Anàlisi Ràpid")
-    col_p1, col_p2 = st.sidebar.columns(2)
-    if col_p1.button("🚉 Ultrapass. Estació", use_container_width=True):
-        st.toast("🔍 Cercant punts de frenada fora d'andana...")
-    if col_p2.button("🛑 Ultrapass. Senyal", use_container_width=True):
-        st.toast("⚠️ Analitzant creuament de balises...")
-    if st.sidebar.button("🎮 Mode de conducció", use_container_width=True):
-        st.toast("📑 Desglossant estats de tracció/frenat...")
+    
+    def apply_rapid_vars(analysis_type):
+        df = st.session_state.get("processed_data")
+        if df is None:
+            st.sidebar.warning("⚠️ Carrega dades abans.")
+            return
+
+        cols = df.columns.tolist()
+        selected = []
+        
+        if analysis_type in ["estacio", "senyal"]:
+            # Distància, Velocitat, Manipulador en FU, Bolet + ATP/ATO (Crític per context)
+            for c in cols:
+                cn = c.upper()
+                # 1. Velocitat
+                if any(k in cn for k in ["VELOCITAT", "VELOCIDAD", "AAA", "SPEED"]): 
+                    selected.append(c)
+                # 2. Distància
+                if any(k in cn for k in ["DISTÀNCIA", "DISTANCIA", "KM", "PK", "DIST_"]): 
+                    selected.append(c)
+                # 3. Manipulador en FU (Fre d'Urgència)
+                if any(k in cn for k in ["MANFU", "MANIPULADOR EN FU", "FRE D'URGÈNCIA", "FU MAN", "FRE_URG"]):
+                    selected.append(c)
+                # 4. Bolet (Seta / Polsador d'Urgència / Freno de Emergencia)
+                if any(k in cn for k in ["BOLET", "SETA", "N-FE", "POLSADOR D'URGÈNCIA", "FREN_EMERG", "EMERGENCIA"]):
+                    selected.append(c)
+                # 5. Mode de Conducció (Nou requeriment per context d'ultrapassament)
+                if any(k in cn for k in ["ATP", "ATO", "MODE", "MODO"]):
+                    selected.append(c)
+        
+        elif analysis_type == "conduccio":
+            # Mode ATP, Mode ATO
+            for c in cols:
+                cn = c.upper()
+                if any(k in cn for k in ["ATP", "ATO", "MODE", "MODO"]):
+                    selected.append(c)
+        
+        # Eliminar duplicats mantenint l'ordre
+        st.session_state.selected_vars = list(dict.fromkeys(selected))
+        st.rerun()
+
+    if st.sidebar.button("🚉 Ultrapassament d'Estació", use_container_width=True):
+        st.toast("🔍 Seleccionant variables d'estació...")
+        apply_rapid_vars("estacio")
+        
+    if st.sidebar.button("🛑 Ultrapassament de Senyal", use_container_width=True):
+        st.toast("⚠️ Seleccionant variables de senyal...")
+        apply_rapid_vars("senyal")
+        
+    if st.sidebar.button("🎮 Mode de Conducció", use_container_width=True):
+        st.toast("📑 Seleccionant variables de conducció...")
+        apply_rapid_vars("conduccio")
     
     # Identificador únic per al fitxer (o mode demo)
     current_key = "DEMO" if demo_mode else (uploaded_file.name if uploaded_file else None)
@@ -549,40 +660,9 @@ def main():
             km_col = st.session_state.km_col
             time_col = st.session_state.time_col
 
-            # --- CONFIGURACIÓ DE LÍNIA I CALIBRATGE ---
-            st.markdown("### 🛤️ Context Ferroviari")
-            line_options = ["S1 (Terrassa)", "S2 (Sabadell)", "L6 (Sarrià)", "L7 (Tibidabo)", "L12 (R.Elisenda)", "Totes"]
-            st.selectbox("Línia d'Anàlisi:", options=line_options, key="active_line")
-            
-            st.markdown("---")
             # --- INTERVAL D'ANÀLISI I FILTRATGE ---
             st.markdown("### ⏲️ Interval d'Anàlisi")
             try:
-                all_st_flat = get_all_stations_flat()
-                st_names = [s["display_name"] for s in all_st_flat]
-                # Options per al selectbox
-                options = ["Cap (Ús PK Absolut)"] + st_names
-                
-                # Assegurar que el valor per defecte existeix a session_state i és vàlid
-                if "selected_st_ui" not in st.session_state or st.session_state.selected_st_ui not in options:
-                    st.session_state.selected_st_ui = "Cap (Ús PK Absolut)"
-                
-                # 4. Renderitzar el selector usant directament la key per a la sincronització bidireccional
-                sel_st_name = st.selectbox(
-                    "📍 Estació d'Origen (Calibratge PK):", 
-                    options=options,
-                    key="selected_st_ui"
-                )
-                
-                # 6. Actualitzar la info d'estació per al mapa/anàlisi
-                selected_starting_pk = None
-                if sel_st_name != "Cap (Ús PK Absolut)":
-                    sel_st_obj = next((s for s in all_st_flat if s["display_name"] == sel_st_name), None)
-                    if sel_st_obj:
-                        selected_starting_pk = float(sel_st_obj["pk_abs"])
-                        st.session_state.origin_st_info = sel_st_obj
-                else:
-                    st.session_state.origin_st_info = None
                 
                 # Neteja de caràcters per a la Sèrie 112 (DD/MM/YY - HH:MM:SS)
                 raw_t = df[time_col].astype(str).str.replace(' - ', ' ', regex=False)
@@ -616,10 +696,22 @@ def main():
                 val_speed, val_dist_m, val_time = "0.0", "0", "--:--"
 
             st.subheader("🛰️ Monitoratge de KPIs")
-            k_cols = st.columns(3)
+            k_cols = st.columns(4) # Augmentem a 4 columnes per al Mode de Conducció
             with k_cols[0]: st.markdown(f'<div class="cockpit-card"><div class="kpi-label">🚀 Velocitat Màxima</div><div class="kpi-value">{val_speed}<span class="kpi-unit">KM/H</span></div></div>', unsafe_allow_html=True)
             with k_cols[1]: st.markdown(f'<div class="cockpit-card"><div class="kpi-label">📏 Distància Total</div><div class="kpi-value">{val_dist_m}<span class="kpi-unit">METRES</span></div></div>', unsafe_allow_html=True)
             with k_cols[2]: st.markdown(f'<div class="cockpit-card"><div class="kpi-label">📅 Timestamp Inici</div><div class="kpi-value">{val_time}<span class="kpi-unit">REF</span></div></div>', unsafe_allow_html=True)
+            
+            # --- KPI DE MODE DE CONDUCCIÓ ---
+            conduction_mode = "Desconegut"
+            atp_col = next((c for c in all_cols if "ATP" in str(c).upper()), None)
+            ato_col = next((c for c in all_cols if "ATO" in str(c).upper()), None)
+            if not analysis_df.empty and atp_col and ato_col:
+                is_atp = (analysis_df[atp_col] == 1).sum()
+                is_ato = (analysis_df[ato_col] == 1).sum()
+                if is_atp > is_ato: conduction_mode = "⚙️ ATP"
+                elif is_ato > is_atp: conduction_mode = "🤖 ATO"
+            
+            with k_cols[3]: st.markdown(f'<div class="cockpit-card"><div class="kpi-label">🕹️ Mode Predominant</div><div class="kpi-value">{conduction_mode}</div></div>', unsafe_allow_html=True)
             
             # --- MAPA TÈCNIC DE VIES ---
             current_st_id = None
@@ -634,7 +726,7 @@ def main():
             if not analysis_df.empty:
                 last_pk = analysis_df[km_col].iloc[-1]
                 s_data = load_stations()
-                closest_str = get_closest_station(last_pk, s_data)
+                closest_str = get_closest_station(last_pk, s_data, line_filter=current_line_filter)
                 if "(" in closest_str:
                     current_st_id = closest_str.split("(")[-1].split(")")[0]
             
@@ -697,15 +789,72 @@ def main():
             for i, extra_v in enumerate(selected_vars):
                 if extra_v not in [speed_col, km_col, time_col] and extra_v in analysis_df.columns:
                     target_row = 2 if n_rows > 1 else 1
+                    color = colors_extra[i % len(colors_extra)]
+                    
                     fig.add_trace(
                         go.Scatter(
                             x=analysis_df[time_col], 
                             y=analysis_df[extra_v], 
                             name=str(extra_v).split(':')[-1].strip(), 
-                            line={'width': 2, 'color': colors_extra[i % len(colors_extra)]}, 
+                            line={'width': 2, 'color': color}, 
                             opacity=0.9
                         ), row=target_row, col=1
                     )
+                    
+                    # --- RES SALTAT D'ESDEVENIMENTS (Canvi 0 -> 1) ---
+                    try:
+                        # Convertim a numèric de forma segura
+                        vals = pd.to_numeric(analysis_df[extra_v], errors='coerce').fillna(0)
+                        
+                        # Lògica especial per a ATP/ATO (Canvi de mode)
+                        is_conduction_var = any(k in str(extra_v).upper() for k in ["ATP", "ATO"])
+                        
+                        # Detectem transició de 0 a 1
+                        trans_idx = analysis_df[(vals.shift(1) == 0) & (vals == 1)].index
+                        
+                        for idx in trans_idx:
+                            t_val = analysis_df.loc[idx, time_col]
+                            label = f" ⚡ {str(extra_v).split(':')[-1].strip()}"
+                            
+                            # Si és canvi de mode, detectem l'anterior si podem
+                            if is_conduction_var:
+                                other_v = ato_col if "ATP" in str(extra_v).upper() else atp_col
+                                if other_v and other_v in analysis_df.columns:
+                                    prev_idx = analysis_df.index.get_loc(idx) - 1 if analysis_df.index.get_loc(idx) > 0 else 0
+                                    other_prev_val = pd.to_numeric(analysis_df.iloc[prev_idx][other_v], errors='coerce')
+                                    if other_prev_val == 1:
+                                        label = f" 🕹️ CANVI DE MODE -> {str(extra_v).split(':')[-1].strip()}"
+                            
+                            # Línia Vertical
+                            fig.add_vline(
+                                x=t_val, 
+                                line_width=2, 
+                                line_dash="dash", 
+                                line_color=color,
+                                opacity=0.8,
+                                annotation_text=f"{label} ({t_val})",
+                                annotation_position="top right",
+                                annotation_font_size=12,
+                                annotation_font_color="#ffffff",
+                                annotation_bgcolor=color,
+                                annotation_bordercolor=color,
+                                annotation_borderwidth=1,
+                                row="all", col=1
+                            )
+                            # Marcador puntual al subplot de senyals
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=[t_val], 
+                                    y=[1],
+                                    mode="markers+text",
+                                    marker=dict(size=12, color=color, symbol="diamond", line=dict(width=2, color="white")),
+                                    showlegend=False,
+                                    hoverinfo="skip"
+                                ), row=target_row, col=1
+                            )
+                    except Exception as e:
+                        # print(f"Error highlighting {extra_v}: {e}")
+                        pass
 
             grid_c = 'rgba(255,255,255,0.08)' if t['plotly_template'] == 'plotly_dark' else 'rgba(0,0,0,0.08)'
             fig.update_layout(
@@ -733,7 +882,9 @@ def main():
                         time_col=str(time_col), 
                         speed_col=str(speed_col), 
                         km_col=str(km_col),
-                        starting_pk=selected_starting_pk
+                        starting_pk=selected_starting_pk,
+                        line_filter=current_line_filter,
+                        is_ascendant=is_ascendant
                     )
                     
                     if op_events:
@@ -754,7 +905,9 @@ def main():
                         speed_col=str(speed_col), 
                         km_col=str(km_col),
                         extra_cols=st.session_state.get("selected_vars", []),
-                        starting_pk=selected_starting_pk
+                        starting_pk=selected_starting_pk,
+                        line_filter=current_line_filter,
+                        is_ascendant=is_ascendant
                     )
                     
                     if minute_summary:
@@ -792,9 +945,22 @@ def main():
                     rep_x = pd.to_datetime(analysis_df[time_col], errors='coerce').dt.strftime('%H:%M:%S').fillna('--:--')
                     rep_y = pd.to_numeric(analysis_df[speed_col], errors='coerce').fillna(0).tolist()
                     
-                    plt.plot(rep_x, rep_y, color=t['primary'], linewidth=2)
+                    plt.plot(rep_x, rep_y, color=t['primary'], linewidth=2, label="Velocitat")
                     plt.title(f"Telemetria Serie FGC {st.session_state.current_unit}")
                     plt.grid(True, alpha=0.1)
+                    
+                    # --- HIGHLIGHTS EN MATPLOTLIB ---
+                    colors_extra = ["#feb300", "#ff716c", "#00ff88", "#ff00ff", "#00ffff"]
+                    for i, extra_v in enumerate(selected_vars):
+                        if extra_v not in [speed_col, km_col, time_col] and extra_v in analysis_df.columns:
+                            color = colors_extra[i % len(colors_extra)]
+                            vals = pd.to_numeric(analysis_df[extra_v], errors='coerce').fillna(0)
+                            trans_idx = analysis_df[(vals.shift(1) == 0) & (vals == 1)].index
+                            for idx in trans_idx:
+                                t_str = rep_x.loc[idx]
+                                plt.axvline(x=t_str, color=color, linestyle='--', alpha=0.7, linewidth=1.5)
+                                plt.text(t_str, max(rep_y)*0.9, f" {str(extra_v).split(':')[-1].strip()}", 
+                                         color=color, fontsize=8, verticalalignment='bottom')
                     
                     # Limitem la densitat de labels per a l'informe si hi ha moltes dades
                     if len(rep_x) > 10:
@@ -813,7 +979,9 @@ def main():
                         time_col=str(time_col), 
                         speed_col=str(speed_col), 
                         km_col=str(km_col),
-                        starting_pk=selected_starting_pk
+                        starting_pk=selected_starting_pk,
+                        line_filter=current_line_filter,
+                        is_ascendant=is_ascendant
                     )
                     
                     minute_summary = get_minute_summary(
@@ -822,7 +990,9 @@ def main():
                         speed_col=str(speed_col), 
                         km_col=str(km_col),
                         extra_cols=st.session_state.get("selected_vars", []),
-                        starting_pk=selected_starting_pk
+                        starting_pk=selected_starting_pk,
+                        line_filter=current_line_filter,
+                        is_ascendant=is_ascendant
                     )
                     
                     doc_buf = generate_word_report(

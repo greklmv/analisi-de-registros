@@ -83,8 +83,8 @@ def load_stations(file_path="src/stations.json"):
     except Exception:
         return {}
 
-def get_closest_station(pk, stations_data):
-    """Identifica l'estació més propera per a un PK determinat amb precisió técnica."""
+def get_closest_station(pk, stations_data, line_filter=None):
+    """Identifica l'estació més propera per a un PK determinat amb precisió técnica, opcionalment filtrant per línia."""
     if not stations_data:
         return "Tram Obert"
     
@@ -92,7 +92,11 @@ def get_closest_station(pk, stations_data):
     min_dist = float('inf')
     
     # Busquem l'estació amb el PK més proper
-    for line_info in stations_data.values():
+    for sec_id, line_info in stations_data.items():
+        # Si hi ha filtre i aquesta secció no és part de la línia activa, la ignorem
+        if line_filter and sec_id not in line_filter:
+            continue
+            
         for st in line_info.get("stations", []):
             st_pk = float(st.get("pk_abs", st.get("pk", 0)))
             dist = pk - st_pk # Diferència real (positiva si hem passat l'estació)
@@ -246,8 +250,8 @@ def segment_by_blocks(df, speed_col='Velocitat'):
         
     return [b for b in blocks if not b.empty]
 
-def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', extra_cols=None, starting_pk=None):
-    """Agrupa les dades en blocs per minut amb seguiment de PK absoluta basat en estació d'origen."""
+def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', extra_cols=None, starting_pk=None, line_filter=None, is_ascendant=True):
+    """Agrupa les dades en blocs per minut amb seguiment de PK absoluta basat en estació d'origen i sentit de marxa."""
     if df.empty: return []
     if extra_cols is None: extra_cols = []
     
@@ -280,14 +284,15 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
         ut_raw = float(block[km_col].iloc[0])
         ut_val = f"{ut_raw * 1000 if ut_raw < 150 else ut_raw:,.1f}"
         
-        # Detecció de la ubicació (estació) amb el nou sistema PK
+        # Detecció de la ubicació (estació) amb el nou sistema PK i sentit (Ascendent/Descendent)
         if starting_pk is not None:
-            # PK = PK Origen + (Distància Acumulada / 1000)
-            current_pk = starting_pk + (total_acc_dist / 1000)
+            # PK = PK Origen +/- (Distància Acumulada / 1000) depenent del sentit
+            dist_km = (total_acc_dist / 1000)
+            current_pk = (starting_pk + dist_km) if is_ascendant else (starting_pk - dist_km)
         else:
             current_pk = ut_raw if ut_raw < 150 else ut_raw / 1000
             
-        loc_name = get_closest_station(current_pk, stations_data)
+        loc_name = get_closest_station(current_pk, stations_data, line_filter=line_filter)
         
         # Distància d'aquest minut (delta real entre registres per evitar salts de l'odòmetre)
         delta_km = abs(block[km_col].max() - block[km_col].min())
@@ -375,7 +380,7 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
         
     return summary
 
-def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0):
+def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0, line_filter=None, is_ascendant=True):
     """
     Genera un resum d'esdeveniments operatius: Sortides i Estacionaments.
     Ideal per al resum executiu net.
@@ -405,10 +410,11 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0):
         start_time = pd.to_datetime(group[time_col].iloc[0]).strftime('%H:%M:%S')
         
         rel_m = (group[km_col].mean() - init_km) * 1000
-        current_pk = starting_pk + (rel_m / 1000)
+        dist_km = (rel_m / 1000)
+        current_pk = (starting_pk if starting_pk is not None else init_km) + (dist_km if is_ascendant else -dist_km)
         
-        # Buscar estació més propera (necessita stations_data)
-        st_info_str = get_closest_station(current_pk, stations_data)
+        # Buscar estació més propera (filatrada per línia)
+        st_info_str = get_closest_station(current_pk, stations_data, line_filter=line_filter)
         loc_name = st_info_str if st_info_str else "Tram Obert"
         
         try:
@@ -426,19 +432,28 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0):
                     "pk": current_pk
                 })
         else:
+            # Mode de Conducció Predominant
+            mode_l = "ATP"
+            atp_sub = next((c for c in group.columns if "ATP" in str(c).upper()), None)
+            ato_sub = next((c for c in group.columns if "ATO" in str(c).upper()), None)
+            if atp_sub and ato_sub:
+                if (group[ato_sub] == 1).sum() > (group[atp_sub] == 1).sum(): mode_l = "ATO"
+
             if i > 0:
                 events.append({
                     "time": start_time,
-                    "event": f"🚀 Sortida de {loc_name}",
+                    "event": f"🚀 Sortida ({mode_l}) de {loc_name}",
                     "details": f"Velocitat màx: {group[speed_col].max():.1f} km/h (PK {current_pk:.3f})",
-                    "pk": current_pk
+                    "pk": current_pk,
+                    "mode": mode_l
                 })
             else:
                 events.append({
                     "time": start_time,
-                    "event": f"🚄 En circulació (inici)",
+                    "event": f"🚄 En circulació {mode_l} (inici)",
                     "details": f"Passant per {loc_name} (PK {current_pk:.3f})",
-                    "pk": current_pk
+                    "pk": current_pk,
+                    "mode": mode_l
                 })
 
     return events
@@ -512,10 +527,25 @@ def generate_mock_fgc_data():
     pressure = np.full(rows, 5.0)
     pressure[400:] = 3.2
     
+    # Noves variables per a l'anàlisi ràpid
+    fu = np.zeros(rows)
+    fu[410:430] = 1 # Simulem un FU puntual al final
+    
+    bolet = np.zeros(rows)
+    # bolet[0] = 0
+    
+    mode_atp = np.ones(rows)
+    mode_ato = np.zeros(rows)
+    mode_ato[100:400] = 1 # Actiu a tram central
+    
     return pd.DataFrame({
         'Hora': times,
         'VELOCIDAD': velocity,
         'KM': km,
         'PRESION_TDP': pressure,
+        'Fre d\'Urgència': fu,
+        'Bolet': bolet,
+        'Mode ATP': mode_atp,
+        'Mode ATO': mode_ato,
         'MATRICULA_UT': ['UT 114.22'] * rows
     })
