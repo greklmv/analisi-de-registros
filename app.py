@@ -56,7 +56,8 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-def render_network_schematic(origin_id=None, pos_id=None):
+def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
+    from src.data_processing import load_stations
     network = load_stations()
     if not network: return ""
     # Mantenim SPACING alt per omplir el quadre, però millorem marges de noms
@@ -76,53 +77,137 @@ def render_network_schematic(origin_id=None, pos_id=None):
     H_SVG = 380 # Augmentem H per donar aire als noms de dalt i baix
     
     svg = f'<svg width="100%" height="{H_SVG}" viewBox="0 0 {W_SVG} {H_SVG}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; border-radius:12px;">'
-    svg += """<style>.schematic-line{stroke:#ccd6e0;stroke-width:4;fill:none;stroke-linecap:round;}.schematic-node{fill:#ffffff;stroke:#94a3b8;stroke-width:2;cursor:pointer;transition:all 0.2s;}.schematic-node:hover{stroke:#0052A3;stroke-width:5;fill:#f1f5f9;}.schematic-node-pos{fill:#0052A3;stroke:#003b79;filter:drop-shadow(0 0 5px rgba(0,82,163,0.3));}.schematic-node-origin{fill:#FF5722;stroke:#d84315;}.schematic-label{font-family:'Inter',sans-serif;font-size:11px;font-weight:800;fill:#334155;pointer-events:none;}</style>"""
+    svg += """<style>
+        .schematic-line{stroke:#ccd6e0;stroke-width:2.5;fill:none;stroke-linecap:round;}
+        .schematic-node{fill:#ffffff;stroke:#94a3b8;stroke-width:2;cursor:pointer;transition:all 0.2s;}
+        .schematic-node:hover{stroke:#0052A3;stroke-width:5;fill:#f1f5f9;}
+        .schematic-node-pos{fill:#0052A3;stroke:#003b79;filter:drop-shadow(0 0 5px rgba(0,82,163,0.3));}
+        .schematic-node-origin{fill:#FF5722;stroke:#d84315;}
+        .schematic-label{font-family:'Inter',sans-serif;font-size:11px;font-weight:800;fill:#334155;pointer-events:none;}
+        .schematic-signal{stroke:#f59e0b;stroke-width:2;fill:none;transition:all 0.2s;}
+        .schematic-signal:hover{stroke:#d97706;stroke-width:4;}
+    </style>"""
     
+    VIA_OFF = 5 
+    NODE_H = 26
     x_coords = {}
-    svg += f'<line x1="{X_START}" y1="{Y_MAIN}" x2="{x_sc}" y2="{Y_MAIN}" class="schematic-line" />'
+    
+    # Tronc Comú (Doble Via)
+    svg += f'<line x1="{X_START}" y1="{Y_MAIN-VIA_OFF}" x2="{x_sc}" y2="{Y_MAIN-VIA_OFF}" class="schematic-line" style="opacity:0.6;" />'
+    svg += f'<line x1="{X_START}" y1="{Y_MAIN+VIA_OFF}" x2="{x_sc}" y2="{Y_MAIN+VIA_OFF}" class="schematic-line" />'
+    
     for i, s in enumerate(trunk):
         x = X_START + i * SPACING
         x_coords[s['id']] = x
         cls = "schematic-node-pos" if s['id']==pos_id else ("schematic-node-origin" if s['id']==origin_id else "schematic-node")
-        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{Y_MAIN-NODE_CH/2}" width="12" height="{NODE_CH}" rx="4" class="{cls}"/><text x="{x}" y="{Y_MAIN+LABEL_OFFSET}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
+        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{Y_MAIN-13}" width="12" height="{NODE_H}" rx="4" class="{cls}"/><text x="{x}" y="{Y_MAIN+LABEL_OFFSET+6}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
 
     x_gr = x_coords.get("GR", X_START + 2*SPACING)
     l7_st = network.get("Ramal-L7", {}).get("stations", [])
     if l7_st:
-        y_l7 = Y_MAIN + 75
-        x_last_l7 = x_gr + 40 + (len(l7_st)-1) * SPACING
-        svg += f'<path d="M {x_gr} {Y_MAIN} L {x_gr+20} {y_l7} L {x_last_l7} {y_l7}" class="schematic-line" />'
+        y_l7 = Y_MAIN + 65
+        x_first_l7 = x_gr + SPACING
+        x_last_l7 = x_first_l7 + (len(l7_st)-1) * SPACING
+        svg += f'<path d="M {x_gr} {Y_MAIN-VIA_OFF} L {x_first_l7} {y_l7-VIA_OFF} L {x_last_l7} {y_l7-VIA_OFF}" class="schematic-line" style="opacity:0.6;" />'
+        svg += f'<path d="M {x_gr} {Y_MAIN+VIA_OFF} L {x_first_l7} {y_l7+VIA_OFF} L {x_last_l7} {y_l7+VIA_OFF}" class="schematic-line" />'
         for i, s in enumerate(l7_st):
-            x = x_gr + 40 + i * SPACING
+            x = x_first_l7 + i * SPACING
             cls = "schematic-node-pos" if s['id']==pos_id else ("schematic-node-origin" if s['id']==origin_id else "schematic-node")
-            svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_l7-NODE_CH/2}" width="12" height="{NODE_CH}" rx="4" class="{cls}"/><text x="{x}" y="{y_l7+LABEL_OFFSET}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
+            svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_l7-13}" width="12" height="{NODE_H}" rx="4" class="{cls}"/><text x="{x}" y="{y_l7+LABEL_OFFSET+6}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
 
     x_sr = x_coords.get("SR", X_START + 7*SPACING)
     l12_st = network.get("Ramal-L12", {}).get("stations", [])
     if l12_st:
-        y_l12 = Y_MAIN - 75
-        x_last_l12 = x_sr + 40 + (len(l12_st)-1) * SPACING
-        svg += f'<path d="M {x_sr} {Y_MAIN} L {x_sr+20} {y_l12} L {x_last_l12} {y_l12}" class="schematic-line" />'
+        y_l12 = Y_MAIN - 65
+        x_first_l12 = x_sr + SPACING
+        x_last_l12 = x_first_l12 + (len(l12_st)-1) * SPACING
+        svg += f'<path d="M {x_sr} {Y_MAIN-VIA_OFF} L {x_first_l12} {y_l12-VIA_OFF} L {x_last_l12} {y_l12-VIA_OFF}" class="schematic-line" style="opacity:0.6;" />'
+        svg += f'<path d="M {x_sr} {Y_MAIN+VIA_OFF} L {x_first_l12} {y_l12+VIA_OFF} L {x_last_l12} {y_l12+VIA_OFF}" class="schematic-line" />'
         for i, s in enumerate(l12_st):
-            x = x_sr + 40 + i * SPACING
+            x = x_first_l12 + i * SPACING
             cls = "schematic-node-pos" if s['id']==pos_id else ("schematic-node-origin" if s['id']==origin_id else "schematic-node")
-            svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_l12-NODE_CH/2}" width="12" height="{NODE_CH}" rx="4" class="{cls}"/><text x="{x}" y="{y_l12-LABEL_OFFSET+10}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
+            svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_l12-13}" width="12" height="{NODE_H}" rx="4" class="{cls}"/><text x="{x}" y="{y_l12-LABEL_OFFSET}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
 
-    y_s1 = Y_MAIN - 100
-    svg += f'<path d="M {x_sc} {Y_MAIN} L {x_sc+30} {y_s1} L {x_last_s1} {y_s1}" class="schematic-line" />'
+    y_s1 = Y_MAIN - 90
+    x_first_s1 = x_sc + SPACING
+    x_last_s1 = x_first_s1 + (len(s1)-1) * SPACING
+    svg += f'<path d="M {x_sc} {Y_MAIN-VIA_OFF} L {x_first_s1} {y_s1-VIA_OFF} L {x_last_s1} {y_s1-VIA_OFF}" class="schematic-line" style="opacity:0.6;" />'
+    svg += f'<path d="M {x_sc} {Y_MAIN+VIA_OFF} L {x_first_s1} {y_s1+VIA_OFF} L {x_last_s1} {y_s1+VIA_OFF}" class="schematic-line" />'
     for i, s in enumerate(s1):
-        x = x_sc + 60 + i * SPACING
+        x = x_first_s1 + i * SPACING
         cls = "schematic-node-pos" if s['id']==pos_id else ("schematic-node-origin" if s['id']==origin_id else "schematic-node")
-        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_s1-NODE_CH/2}" width="12" height="{NODE_CH}" rx="4" class="{cls}"/><text x="{x}" y="{y_s1-LABEL_OFFSET+10}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
+        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_s1-13}" width="12" height="{NODE_H}" rx="4" class="{cls}"/><text x="{x}" y="{y_s1-LABEL_OFFSET}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
     
-    y_s2 = Y_MAIN + 100
-    svg += f'<path d="M {x_sc} {Y_MAIN} L {x_sc+30} {y_s2} L {x_last_s2} {y_s2}" class="schematic-line" />'
+    y_s2 = Y_MAIN + 90
+    x_first_s2 = x_sc + SPACING
+    x_last_s2 = x_first_s2 + (len(s2)-1) * SPACING
+    svg += f'<path d="M {x_sc} {Y_MAIN-VIA_OFF} L {x_first_s2} {y_s2-VIA_OFF} L {x_last_s2} {y_s2-VIA_OFF}" class="schematic-line" style="opacity:0.6;" />'
+    svg += f'<path d="M {x_sc} {Y_MAIN+VIA_OFF} L {x_first_s2} {y_s2+VIA_OFF} L {x_last_s2} {y_s2+VIA_OFF}" class="schematic-line" />'
     for i, s in enumerate(s2):
-        x = x_sc + 60 + i * SPACING
+        x = x_first_s2 + i * SPACING
         cls = "schematic-node-pos" if s['id']==pos_id else ("schematic-node-origin" if s['id']==origin_id else "schematic-node")
-        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_s2-NODE_CH/2}" width="12" height="{NODE_CH}" rx="4" class="{cls}"/><text x="{x}" y="{y_s2+LABEL_OFFSET}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
+        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_s2-13}" width="12" height="{NODE_H}" rx="4" class="{cls}"/><text x="{x}" y="{y_s2+LABEL_OFFSET+6}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
 
-    svg += f'<g transform="translate(20, 20)"><rect x="0" y="0" width="12" height="12" rx="3" fill="#FF5722"/><text x="18" y="10" style="font-family:Inter; font-size:11px; font-weight:800; fill:#1e293b;">ORIGEN</text><rect x="85" y="0" width="12" height="12" rx="3" fill="#0052A3"/><text x="103" y="10" style="font-family:Inter; font-size:11px; font-weight:800; fill:#1e293b;">POSICIÓ ACTUAL</text></g>'
+    # --- Dibuixar Senyals si n'hi ha (Situades a la VIA 1 - via de baix) ---
+    if signals_data:
+        # Tronc Comú
+        trunk_pks = [s['pk_abs'] for s in trunk]
+        for sig in signals_data.get("Tronc-Comu", []):
+            spk = float(sig["pk_abs"])
+            if spk <= trunk_pks[-1]:
+                for i in range(len(trunk)-1):
+                    p1, p2 = trunk_pks[i], trunk_pks[i+1]
+                    if p1 <= spk <= p2:
+                        sx = x_coords[trunk[i]['id']] + (spk-p1)/(p2-p1)*(x_coords[trunk[i+1]['id']]-x_coords[trunk[i]['id']])
+                        # Marca vertical sobre la VIA 1 (Y_MAIN + VIA_OFF)
+                        svg += f'<g><title>Senyal {sig["id"]} [Via 1] (PK {spk:.3f})</title><line x1="{sx}" y1="{Y_MAIN+VIA_OFF-6}" x2="{sx}" y2="{Y_MAIN+VIA_OFF+6}" class="schematic-signal" /></g>'
+                        break
+
+        # S1 Branch
+        s1_pks = [s['pk_abs'] for s in s1]
+        if s1:
+            for sig in signals_data.get("Ramal-S1", []):
+                spk = float(sig["pk_abs"])
+                if s1_pks[0] <= spk <= s1_pks[-1]:
+                    for i in range(len(s1)-1):
+                        p1, p2 = s1_pks[i], s1_pks[i+1]
+                        if p1 <= spk <= p2:
+                            sx = x_first_s1 + i*SPACING + (spk-p1)/(p2-p1)*SPACING
+                            svg += f'<g><title>Senyal {sig["id"]} [Via 1] (PK {spk:.3f})</title><line x1="{sx}" y1="{y_s1+VIA_OFF-6}" x2="{sx}" y2="{y_s1+VIA_OFF+6}" class="schematic-signal" /></g>'
+                            break
+
+        # S2 Branch
+        s2_pks = [s['pk_abs'] for s in s2]
+        if s2:
+            for sig in signals_data.get("Ramal-S2", []):
+                spk = float(sig["pk_abs"])
+                if s2_pks[0] <= spk <= s2_pks[-1]:
+                    for i in range(len(s2)-1):
+                        p1, p2 = s2_pks[i], s2_pks[i+1]
+                        if p1 <= spk <= p2:
+                            sx = x_first_s2 + i*SPACING + (spk-p1)/(p2-p1)*SPACING
+                            svg += f'<g><title>Senyal {sig["id"]} [Via 1] (PK {spk:.3f})</title><line x1="{sx}" y1="{y_s2+VIA_OFF-6}" x2="{sx}" y2="{y_s2+VIA_OFF+6}" class="schematic-signal" /></g>'
+                            break
+
+        # L7 Branch
+        l7_pks = [s['pk_abs'] for s in l7_st]
+        if l7_st:
+            for sig in signals_data.get("Ramal-L7", []):
+                spk = float(sig["pk_abs"])
+                if l7_pks[0] <= spk <= l7_pks[-1]:
+                    for i in range(len(l7_st)-1):
+                        p1, p2 = l7_pks[i], l7_pks[i+1]
+                        if p1 <= spk <= p2:
+                            sx = x_first_l7 + i*SPACING + (spk-p1)/(p2-p1)*SPACING
+                            svg += f'<g><title>Senyal {sig["id"]} [Via 1] (PK {spk:.3f})</title><line x1="{sx}" y1="{y_l7+VIA_OFF-6}" x2="{sx}" y2="{y_l7+VIA_OFF+6}" class="schematic-signal" /></g>'
+                            break
+
+    svg += f'<g transform="translate(20, 15)">'
+    svg += f'<rect x="0" y="0" width="10" height="10" rx="2" fill="#ccd6e0" style="opacity:0.6;"/><text x="14" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#64748b;">VIA 2 / DESC</text>'
+    svg += f'<rect x="90" y="0" width="10" height="10" rx="2" fill="#ccd6e0"/><text x="104" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">VIA 1 / ASC</text>'
+    svg += f'<line x1="180" y1="5" x2="190" y2="5" style="stroke:#f59e0b; stroke-width:3;"/><text x="195" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">SENYAL (VIA 1)</text>'
+    svg += f'<rect x="290" y="0" width="10" height="10" rx="2" fill="#0052A3"/><text x="304" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">POSICIÓ ACTUAL</text>'
+    svg += f'</g>'
     svg += '</svg>'
     return svg
 
@@ -219,15 +304,23 @@ def main():
 
         closest = get_closest_station(pk_abs, load_stations())
         pos_id = closest.split("(")[-1].split(")")[0] if "(" in closest else None
-        st.markdown(f'<div class="top-schematic">{render_network_schematic(origin_id, pos_id)}</div>', unsafe_allow_html=True)
+        
+        # Propera Senyal
+        from src.data_processing import load_signals, get_closest_signal
+        signals_data = load_signals()
+        closest_sig, sig_dist = get_closest_signal(pk_abs, signals_data)
+        next_sig_str = f"{closest_sig['id']} ({sig_dist*1000:.0f}m)" if closest_sig else "---"
+
+        st.markdown(f'<div class="top-schematic">{render_network_schematic(origin_id, pos_id, signals_data)}</div>', unsafe_allow_html=True)
         st.markdown(f'<p style="text-align:center; font-weight:800; color:#0052A3; margin-top:-20px; margin-bottom:25px;">📍 POSICIÓ ACTUAL: {closest}</p>', unsafe_allow_html=True)
 
-        k_cols = st.columns(4)
+        k_cols = st.columns(5)
         k_cols[0].markdown(f'<div class="cockpit-card"><div class="kpi-label">🚀 Velocitat</div><div class="kpi-value">{float(point[speed_col]):.1f}<span class="kpi-unit">KM/H</span></div></div>', unsafe_allow_html=True)
         k_cols[1].markdown(f'<div class="cockpit-card"><div class="kpi-label">📏 Posició PK</div><div class="kpi-value">{pk_abs:.3f}<span class="kpi-unit">KM</span></div></div>', unsafe_allow_html=True)
         k_cols[2].markdown(f'<div class="cockpit-card"><div class="kpi-label">🕒 Temps</div><div class="kpi-value">{times_l[cursor_idx]}</div></div>', unsafe_allow_html=True)
         mode = "🤖 ATO" if (ato_col and point[ato_col]==1) else "⚙️ ATP"
         k_cols[3].markdown(f'<div class="cockpit-card"><div class="kpi-label">🕹️ Mode Actiu</div><div class="kpi-value" style="color:{"#10b981" if "ATO" in mode else "#0052A3"}">{mode}</div></div>', unsafe_allow_html=True)
+        k_cols[4].markdown(f'<div class="cockpit-card"><div class="kpi-label">🚦 Propera Senyal</div><div class="kpi-value">{next_sig_str}</div></div>', unsafe_allow_html=True)
 
         st.multiselect("Senyals de Control:", df.columns.tolist(), key="selected_vars")
         
@@ -242,6 +335,19 @@ def main():
                 m = "ATO" if r[ato_col]==1 else "ATP"
                 fig.add_vline(x=r[time_col], line_width=1.2, line_dash="dot", line_color="#f59e0b")
                 fig.add_annotation(x=r[time_col], y=90, text=f"Entrada {m}", showarrow=False, font=dict(size=9, color="#b45309"))
+
+        # Afegir Senyals al Gràfic
+        if signals_data:
+            limit_pks = [df[km_col].min(), df[km_col].max()]
+            for name, items in signals_data.items():
+                for sig in items:
+                    spk = float(sig["pk_abs"])
+                    if min(limit_pks) <= spk <= max(limit_pks):
+                        # Trobar punt de temps més proper al PK del senyal (aproximat)
+                        closest_idx = (df[km_col] - spk).abs().idxmin()
+                        sig_time = df.loc[closest_idx, time_col]
+                        fig.add_vline(x=sig_time, line_width=1, line_dash="dash", line_color="#f59e0b", opacity=0.4)
+                        fig.add_annotation(x=sig_time, y=10, text=f"{sig['id']}", showarrow=False, font=dict(size=8, color="#d97706"))
 
         for idx, v in enumerate(st.session_state.selected_vars):
             if v != speed_col: fig.add_trace(go.Scatter(x=df[time_col], y=df[v], name=str(v)), row=2, col=1)

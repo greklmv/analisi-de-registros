@@ -135,6 +135,32 @@ def get_all_stations_flat():
     # Sort by PK abs
     return sorted(flat_list, key=lambda x: x.get("pk_abs", 0))
 
+def load_signals(file_path="src/signals.json"):
+    """Carrega les senyals de via des d'un fitxer JSON."""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    full_path = os.path.join(base_dir, file_path)
+    if not os.path.exists(full_path): return {}
+    try:
+        with open(full_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception: return {}
+
+def get_closest_signal(pk, signals_data, line_filter=None):
+    """Troba la senyal més propera per a un PK determinat."""
+    if not signals_data: return None, None
+    best_sig = None
+    min_dist = float('inf')
+    
+    for group, items in signals_data.items():
+        if line_filter and group not in line_filter: continue
+        for sig in items:
+            sig_pk = float(sig["pk_abs"])
+            dist = abs(pk - sig_pk)
+            if dist < min_dist:
+                min_dist = dist
+                best_sig = sig
+    return best_sig, min_dist
+
 def get_sheet_names(uploaded_file):
     """Obté els noms de les fulles d'un fitxer Excel."""
     file_type = uploaded_file.name.split('.')[-1].lower()
@@ -388,11 +414,12 @@ def calculate_pk_at_index(idx, df, km_col, starting_pk, is_ascendant):
     dist_km = (curr_km - init_km)
     return starting_pk + (dist_km if is_ascendant else -dist_km)
 
-def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0, is_ascendant=True, line_filter=None):
+def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0, is_ascendant=True, line_filter=None, signals_data=None):
     """
     Detecta automàticament punts crítics en la telemetria:
     - FU (Fre d'Urgència) o Bolet (Seta).
     - Sobrevelocitats (> 90 km/h).
+    Inclou la senyal més propera per a cada anomalia.
     """
     anomalies = []
     if df.empty: return anomalies
@@ -404,18 +431,23 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0, is_ascendan
     # 1. Detectar Sobrevelocitat (> 90.5 km/h per evitar soroll)
     over_speed = df[df[speed_col] > 90.5]
     if not over_speed.empty:
-        # Agrupar punts consecutius
         diff = over_speed.index.to_series().diff().fillna(1)
-        groups = (diff > 10).cumsum() # Blocs separats per 10 segons
+        groups = (diff > 10).cumsum()
         for _, g in over_speed.groupby(groups):
             t_start = pd.to_datetime(g[time_col].iloc[0]).strftime('%H:%M:%S')
             v_max = g[speed_col].max()
             idx_max = g[speed_col].idxmax()
             pk_val = calculate_pk_at_index(idx_max, df, km_col, starting_pk, is_ascendant)
+            
+            sig_info = ""
+            if signals_data:
+                sig, dist = get_closest_signal(pk_val, signals_data, line_filter)
+                if sig: sig_info = f" (Prop de Senyal {sig['id']})"
+
             anomalies.append({
                 "time": t_start,
                 "event": "🚀 SOBREVELOCITAT",
-                "details": f"Velocitat màxima de {v_max:.1f} km/h (Límit 90).",
+                "details": f"Velocitat màxima de {v_max:.1f} km/h (Límit 90){sig_info}.",
                 "type": "SOBREVELOCITAT",
                 "pk": pk_val,
                 "severity": "Alta"
@@ -428,12 +460,18 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0, is_ascendan
         for idx, row in activates.iterrows():
             t = pd.to_datetime(row[time_col]).strftime('%H:%M:%S')
             pk_val = calculate_pk_at_index(idx, df, km_col, starting_pk, is_ascendant)
+            
+            sig_info = ""
+            if signals_data:
+                sig, dist = get_closest_signal(pk_val, signals_data, line_filter)
+                if sig: sig_info = f" (Prop de Senyal {sig['id']})"
+
             is_fu = any(k in str(col).upper() for k in ["FU", "URGÈNCIA", "URGENCIA"])
             label = "⚠️ FRE D'URGÈNCIA" if is_fu else "🚨 BOLET / EMERGÈNCIA"
             anomalies.append({
                 "time": t,
                 "event": label,
-                "details": f"Activació de {col} a {row[speed_col]:.1f} km/h.",
+                "details": f"Activació de {col} a {row[speed_col]:.1f} km/h{sig_info}.",
                 "type": "SEGURETAT",
                 "pk": pk_val,
                 "severity": "Crítica"
@@ -448,8 +486,10 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0, line
     """
     if df.empty: return []
     
-    # Carreguem dades estacions
+    # Carreguem dades estacions i senyals
     stations_data = load_stations()
+    from src.data_processing import load_signals, get_closest_signal
+    signals_data = load_signals()
     
     # 1. Definir estats: 0 = Parat, 1 = Moviment
     df_state = df.copy()
@@ -486,10 +526,12 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0, line
             
         if not is_moving:
             if duration_sec > 10:
+                sig, dist = get_closest_signal(current_pk, signals_data, line_filter)
+                sig_info = f" | {sig['id']}" if sig else ""
                 events.append({
                     "time": start_time,
                     "event": f"🅿️ Estacionat a {loc_name}",
-                    "details": f"Aturat durant {int(duration_sec)}s (PK {current_pk:.3f})",
+                    "details": f"Aturat durant {int(duration_sec)}s (PK {current_pk:.3f}){sig_info}",
                     "pk": current_pk
                 })
         else:
@@ -501,24 +543,28 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0, line
                 if (group[ato_sub] == 1).sum() > (group[atp_sub] == 1).sum(): mode_l = "ATO"
 
             if i > 0:
+                sig, dist = get_closest_signal(current_pk, signals_data, line_filter)
+                sig_info = f" | {sig['id']}" if sig else ""
                 events.append({
                     "time": start_time,
                     "event": f"🚀 Sortida ({mode_l}) de {loc_name}",
-                    "details": f"Velocitat màx: {group[speed_col].max():.1f} km/h (PK {current_pk:.3f})",
+                    "details": f"Velocitat màx: {group[speed_col].max():.1f} km/h (PK {current_pk:.3f}){sig_info}",
                     "pk": current_pk,
                     "mode": mode_l
                 })
             else:
+                sig, dist = get_closest_signal(current_pk, signals_data, line_filter)
+                sig_info = f" | {sig['id']}" if sig else ""
                 events.append({
                     "time": start_time,
                     "event": f"🚄 En circulació {mode_l} (inici)",
-                    "details": f"Passant per {loc_name} (PK {current_pk:.3f})",
+                    "details": f"Passant per {loc_name}{sig_info} (PK {current_pk:.3f})",
                     "pk": current_pk,
                     "mode": mode_l
                 })
 
     # --- INTEGRACIÓ D'ANOMALIES ---
-    anomalies = detect_anomalies(df_state, speed_col, km_col, time_col, starting_pk, is_ascendant, line_filter)
+    anomalies = detect_anomalies(df_state, speed_col, km_col, time_col, starting_pk, is_ascendant, line_filter, signals_data)
     for a in anomalies:
         events.append({
             "time": a["time"],
