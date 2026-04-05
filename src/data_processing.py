@@ -145,20 +145,31 @@ def load_signals(file_path="src/signals.json"):
             return json.load(f)
     except Exception: return {}
 
-def get_closest_signal(pk, signals_data, line_filter=None):
-    """Troba la senyal més propera per a un PK determinat."""
+def get_closest_signal(pk, signals_data, line_filter=None, track=None):
+    """Troba la senyal més propera per a un PK determinat, opcionalment filtrant per via."""
     if not signals_data: return None, None
     best_sig = None
     min_dist = float('inf')
     
-    for group, items in signals_data.items():
-        if line_filter and group not in line_filter: continue
-        for sig in items:
-            sig_pk = float(sig["pk_abs"])
-            dist = abs(pk - sig_pk)
-            if dist < min_dist:
-                min_dist = dist
-                best_sig = sig
+    # Si s'especifica via, només busquem en aquesta via
+    search_space = signals_data.get(track, signals_data) if track in signals_data else signals_data
+    
+    # Funció recursiva per buscar en grups (per si l'estructura és Via -> Grup -> Senyals)
+    def find_in_groups(data):
+        nonlocal best_sig, min_dist
+        if isinstance(data, list):
+            for sig in data:
+                sig_pk = float(sig["pk_abs"])
+                dist = abs(pk - sig_pk)
+                if dist < min_dist:
+                    min_dist = dist
+                    best_sig = sig
+        elif isinstance(data, dict):
+            for group, content in data.items():
+                if line_filter and group not in line_filter: continue
+                find_in_groups(content)
+
+    find_in_groups(search_space)
     return best_sig, min_dist
 
 def get_sheet_names(uploaded_file):
@@ -441,7 +452,8 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0, is_ascendan
             
             sig_info = ""
             if signals_data:
-                sig, dist = get_closest_signal(pk_val, signals_data, line_filter)
+                track = "Via1" if is_ascendant else "Via2"
+                sig, dist = get_closest_signal(pk_val, signals_data, line_filter, track=track)
                 if sig: sig_info = f" (Prop de Senyal {sig['id']})"
 
             anomalies.append({
@@ -463,7 +475,8 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0, is_ascendan
             
             sig_info = ""
             if signals_data:
-                sig, dist = get_closest_signal(pk_val, signals_data, line_filter)
+                track = "Via1" if is_ascendant else "Via2"
+                sig, dist = get_closest_signal(pk_val, signals_data, line_filter, track=track)
                 if sig: sig_info = f" (Prop de Senyal {sig['id']})"
 
             is_fu = any(k in str(col).upper() for k in ["FU", "URGÈNCIA", "URGENCIA"])
@@ -530,7 +543,8 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0, line
             
         if not is_moving:
             if duration_sec > 10:
-                sig, dist = get_closest_signal(current_pk, signals_data, line_filter)
+                track = "Via1" if is_ascendant else "Via2"
+                sig, dist = get_closest_signal(current_pk, signals_data, line_filter, track=track)
                 sig_info = f" | {sig['id']}" if sig else ""
                 events.append({
                     "time": start_time,
@@ -547,7 +561,8 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0, line
                 if (group[ato_sub] == 1).sum() > (group[atp_sub] == 1).sum(): mode_l = "ATO"
 
             if i > 0:
-                sig, dist = get_closest_signal(current_pk, signals_data, line_filter)
+                track = "Via1" if is_ascendant else "Via2"
+                sig, dist = get_closest_signal(current_pk, signals_data, line_filter, track=track)
                 sig_info = f" | {sig['id']}" if sig else ""
                 events.append({
                     "time": start_time,
@@ -557,7 +572,8 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0, line
                     "mode": mode_l
                 })
             else:
-                sig, dist = get_closest_signal(current_pk, signals_data, line_filter)
+                track = "Via1" if is_ascendant else "Via2"
+                sig, dist = get_closest_signal(current_pk, signals_data, line_filter, track=track)
                 sig_info = f" | {sig['id']}" if sig else ""
                 events.append({
                     "time": start_time,

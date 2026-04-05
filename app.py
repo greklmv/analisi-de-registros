@@ -148,65 +148,74 @@ def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
         cls = "schematic-node-pos" if s['id']==pos_id else ("schematic-node-origin" if s['id']==origin_id else "schematic-node")
         svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_s2-13}" width="12" height="{NODE_H}" rx="4" class="{cls}"/><text x="{x}" y="{y_s2+LABEL_OFFSET+6}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
 
-    # --- Dibuixar Senyals si n'hi ha (Situades a la VIA 1 - via de baix) ---
+    # --- Dibuixar Senyals si n'hi ha ---
     if signals_data:
-        # Tronc Comú
-        trunk_pks = [s['pk_abs'] for s in trunk]
-        for sig in signals_data.get("Tronc-Comu", []):
-            spk = float(sig["pk_abs"])
-            if spk <= trunk_pks[-1]:
-                for i in range(len(trunk)-1):
-                    p1, p2 = trunk_pks[i], trunk_pks[i+1]
-                    if p1 <= spk <= p2:
-                        sx = x_coords[trunk[i]['id']] + (spk-p1)/(p2-p1)*(x_coords[trunk[i+1]['id']]-x_coords[trunk[i]['id']])
-                        # Marca vertical sobre la VIA 1 (Y_MAIN + VIA_OFF)
-                        svg += f'<g><title>Senyal {sig["id"]} [Via 1] (PK {spk:.3f})</title><line x1="{sx}" y1="{Y_MAIN+VIA_OFF-6}" x2="{sx}" y2="{Y_MAIN+VIA_OFF+6}" class="schematic-signal" /></g>'
-                        break
-
-        # S1 Branch
-        s1_pks = [s['pk_abs'] for s in s1]
-        if s1:
-            for sig in signals_data.get("Ramal-S1", []):
+        for via_name, via_groups in signals_data.items():
+            is_v1 = via_name == "Via1"
+            y_off = VIA_OFF if is_v1 else -VIA_OFF
+            sig_color = "#f59e0b" if is_v1 else "#ef4444"
+            via_label = "Via 1" if is_v1 else "Via 2"
+            
+            # Tronc Comú
+            trunk_pks = [s['pk_abs'] for s in trunk]
+            for sig in via_groups.get("Tronc-Comu", []):
                 spk = float(sig["pk_abs"])
-                if s1_pks[0] <= spk <= s1_pks[-1]:
-                    for i in range(len(s1)-1):
-                        p1, p2 = s1_pks[i], s1_pks[i+1]
+                if trunk_pks[0] <= spk <= trunk_pks[-1]:
+                    for i in range(len(trunk)-1):
+                        p1, p2 = trunk_pks[i], trunk_pks[i+1]
                         if p1 <= spk <= p2:
-                            sx = x_first_s1 + i*SPACING + (spk-p1)/(p2-p1)*SPACING
-                            svg += f'<g><title>Senyal {sig["id"]} [Via 1] (PK {spk:.3f})</title><line x1="{sx}" y1="{y_s1+VIA_OFF-6}" x2="{sx}" y2="{y_s1+VIA_OFF+6}" class="schematic-signal" /></g>'
+                            sx = x_coords[trunk[i]['id']] + (spk-p1)/(p2-p1)*(x_coords[trunk[i+1]['id']]-x_coords[trunk[i]['id']])
+                            svg += f'<g><title>Senyal {sig["id"]} [{via_label}] (PK {spk:.3f})</title><line x1="{sx}" y1="{Y_MAIN+y_off-6}" x2="{sx}" y2="{Y_MAIN+y_off+6}" style="stroke:{sig_color}; stroke-width:2; fill:none;" /></g>'
                             break
 
-        # S2 Branch
-        s2_pks = [s['pk_abs'] for s in s2]
-        if s2:
-            for sig in signals_data.get("Ramal-S2", []):
-                spk = float(sig["pk_abs"])
-                if s2_pks[0] <= spk <= s2_pks[-1]:
-                    for i in range(len(s2)-1):
-                        p1, p2 = s2_pks[i], s2_pks[i+1]
-                        if p1 <= spk <= p2:
-                            sx = x_first_s2 + i*SPACING + (spk-p1)/(p2-p1)*SPACING
-                            svg += f'<g><title>Senyal {sig["id"]} [Via 1] (PK {spk:.3f})</title><line x1="{sx}" y1="{y_s2+VIA_OFF-6}" x2="{sx}" y2="{y_s2+VIA_OFF+6}" class="schematic-signal" /></g>'
-                            break
+            # S1 Branch
+            s1_pks = [s['pk_abs'] for s in s1]
+            if s1:
+                for sig in via_groups.get("Ramal-S1", []):
+                    spk = float(sig["pk_abs"])
+                    if min(s1_pks) <= spk <= max(s1_pks):
+                        for i in range(len(s1)-1):
+                            p1, p2 = s1_pks[i], s1_pks[i+1]
+                            p_min, p_max = min(p1, p2), max(p1, p2)
+                            if p_min <= spk <= p_max:
+                                sx = x_first_s1 + i*SPACING + (spk-p1)/(p2-p1)*SPACING
+                                svg += f'<g><title>Senyal {sig["id"]} [{via_label}] (PK {spk:.3f})</title><line x1="{sx}" y1="{y_s1+y_off-6}" x2="{sx}" y2="{y_s1+y_off+6}" style="stroke:{sig_color}; stroke-width:2; fill:none;" /></g>'
+                                break
 
-        # L7 Branch
-        l7_pks = [s['pk_abs'] for s in l7_st]
-        if l7_st:
-            for sig in signals_data.get("Ramal-L7", []):
-                spk = float(sig["pk_abs"])
-                if l7_pks[0] <= spk <= l7_pks[-1]:
-                    for i in range(len(l7_st)-1):
-                        p1, p2 = l7_pks[i], l7_pks[i+1]
-                        if p1 <= spk <= p2:
-                            sx = x_first_l7 + i*SPACING + (spk-p1)/(p2-p1)*SPACING
-                            svg += f'<g><title>Senyal {sig["id"]} [Via 1] (PK {spk:.3f})</title><line x1="{sx}" y1="{y_l7+VIA_OFF-6}" x2="{sx}" y2="{y_l7+VIA_OFF+6}" class="schematic-signal" /></g>'
-                            break
+            # S2 Branch
+            s2_pks = [s['pk_abs'] for s in s2]
+            if s2:
+                for sig in via_groups.get("Ramal-S2", []):
+                    spk = float(sig["pk_abs"])
+                    if min(s2_pks) <= spk <= max(s2_pks):
+                        for i in range(len(s2)-1):
+                            p1, p2 = s2_pks[i], s2_pks[i+1]
+                            p_min, p_max = min(p1, p2), max(p1, p2)
+                            if p_min <= spk <= p_max:
+                                sx = x_first_s2 + i*SPACING + (spk-p1)/(p2-p1)*SPACING
+                                svg += f'<g><title>Senyal {sig["id"]} [{via_label}] (PK {spk:.3f})</title><line x1="{sx}" y1="{y_s2+y_off-6}" x2="{sx}" y2="{y_s2+y_off+6}" style="stroke:{sig_color}; stroke-width:2; fill:none;" /></g>'
+                                break
+
+            # L7 Branch
+            l7_pks = [s['pk_abs'] for s in l7_st]
+            if l7_st:
+                for sig in via_groups.get("Ramal-L7", []):
+                    spk = float(sig["pk_abs"])
+                    if min(l7_pks) <= spk <= max(l7_pks):
+                        for i in range(len(l7_st)-1):
+                            p1, p2 = l7_pks[i], l7_pks[i+1]
+                            p_min, p_max = min(p1, p2), max(p1, p2)
+                            if p_min <= spk <= p_max:
+                                sx = x_first_l7 + i*SPACING + (spk-p1)/(p2-p1)*SPACING
+                                svg += f'<g><title>Senyal {sig["id"]} [{via_label}] (PK {spk:.3f})</title><line x1="{sx}" y1="{y_l7+y_off-6}" x2="{sx}" y2="{y_l7+y_off+6}" style="stroke:{sig_color}; stroke-width:2; fill:none;" /></g>'
+                                break
 
     svg += f'<g transform="translate(20, 15)">'
     svg += f'<rect x="0" y="0" width="10" height="10" rx="2" fill="#ccd6e0" style="opacity:0.6;"/><text x="14" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#64748b;">VIA 2 / DESC</text>'
     svg += f'<rect x="90" y="0" width="10" height="10" rx="2" fill="#ccd6e0"/><text x="104" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">VIA 1 / ASC</text>'
-    svg += f'<line x1="180" y1="5" x2="190" y2="5" style="stroke:#f59e0b; stroke-width:3;"/><text x="195" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">SENYAL (VIA 1)</text>'
-    svg += f'<rect x="290" y="0" width="10" height="10" rx="2" fill="#0052A3"/><text x="304" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">POSICIÓ ACTUAL</text>'
+    svg += f'<line x1="180" y1="5" x2="190" y2="5" style="stroke:#f59e0b; stroke-width:3;"/><text x="195" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">SENYAL V1</text>'
+    svg += f'<line x1="260" y1="5" x2="270" y2="5" style="stroke:#ef4444; stroke-width:3;"/><text x="275" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">SENYAL V2</text>'
+    svg += f'<rect x="340" y="0" width="10" height="10" rx="2" fill="#0052A3"/><text x="354" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">POSICIÓ ACTUAL</text>'
     svg += f'</g>'
     svg += '</svg>'
     return svg
@@ -349,7 +358,8 @@ def main():
         # Propera Senyal
         from src.data_processing import load_signals, get_closest_signal
         signals_data = load_signals()
-        closest_sig, sig_dist = get_closest_signal(pk_abs, signals_data)
+        track = "Via1" if "Ascendent" in st.session_state.active_direction else "Via2"
+        closest_sig, sig_dist = get_closest_signal(pk_abs, signals_data, track=track)
         next_sig_str = f"{closest_sig['id']} ({sig_dist*1000:.0f}m)" if closest_sig else "---"
 
         from src.svg_component import interactive_svg
@@ -394,15 +404,25 @@ def main():
         # Afegir Senyals al Gràfic
         if signals_data:
             limit_pks = [df[km_col].min(), df[km_col].max()]
-            for name, items in signals_data.items():
-                for sig in items:
-                    spk = float(sig["pk_abs"])
-                    if min(limit_pks) <= spk <= max(limit_pks):
-                        # Trobar punt de temps més proper al PK del senyal (aproximat)
-                        closest_idx = (df[km_col] - spk).abs().idxmin()
-                        sig_time = df.loc[closest_idx, time_col]
-                        fig.add_vline(x=sig_time, line_width=1, line_dash="dash", line_color="#f59e0b", opacity=0.4)
-                        fig.add_annotation(x=sig_time, y=10, text=f"{sig['id']}", showarrow=False, font=dict(size=8, color="#d97706"))
+            track_key = "Via1" if "Ascendent" in st.session_state.active_direction else "Via2"
+            active_signals = signals_data.get(track_key, signals_data)
+            
+            # Funció per iterar en qualsevol estructura (per seguretat)
+            def plot_signals_recursive(data):
+                if isinstance(data, list):
+                    for sig in data:
+                        if "pk_abs" not in sig: continue
+                        spk = float(sig["pk_abs"])
+                        if min(limit_pks) <= spk <= max(limit_pks):
+                            closest_idx = (df[km_col] - spk).abs().idxmin()
+                            sig_time = df.loc[closest_idx, time_col]
+                            fig.add_vline(x=sig_time, line_width=1, line_dash="dash", line_color="#f59e0b", opacity=0.4)
+                            fig.add_annotation(x=sig_time, y=10, text=f"{sig['id']}", showarrow=False, font=dict(size=8, color="#d97706"))
+                elif isinstance(data, dict):
+                    for v in data.values():
+                        plot_signals_recursive(v)
+
+            plot_signals_recursive(active_signals)
 
         for idx, v in enumerate(st.session_state.selected_vars):
             if v != speed_col: fig.add_trace(go.Scatter(x=df[time_col], y=df[v], name=str(v)), row=2, col=1)

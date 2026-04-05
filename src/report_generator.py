@@ -1,5 +1,7 @@
 from docx import Document  # type: ignore
 from docx.shared import Inches, Pt  # type: ignore
+from docx.enum.text import WD_ALIGN_PARAGRAPH # type: ignore
+
 import matplotlib.pyplot as plt
 import io
 import os
@@ -27,6 +29,19 @@ def safe_add_heading(doc, text, level):
         run.bold = True
         run.font.size = Pt(14) if level == 1 else Pt(12)
 
+def safe_add_paragraph(doc, text="", style=None):
+    """Añade un párrafo de forma segura, manejando estilos inexistentes."""
+    try:
+        return doc.add_paragraph(text, style=style)
+    except Exception:
+        p = doc.add_paragraph()
+        if style and ('List Bullet' in style or 'Bullet' in style):
+            p.add_run("• ")
+        if text:
+            p.add_run(text)
+        return p
+
+
 def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_events=None, template_path="/Users/grek/IA/Analisis registros/plantilla informe registros.docx"):
     """Genera el informe Word con deteccion de eventos y zoom plots."""
     if not os.path.exists(template_path):
@@ -53,7 +68,8 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_
     if op_events:
         safe_add_heading(doc, "Línia de Temps Operativa", level=1)
         for ev in op_events:
-            p = doc.add_paragraph(style='List Bullet')
+            p = safe_add_paragraph(doc, style='List Bullet')
+
             t_str = ev.get('time', '--:--')
             e_txt = ev.get('event', 'Event')
             run = p.add_run(f"[{t_str}] {e_txt}")
@@ -87,10 +103,11 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_
         tbl = doc.tables[1]
         for row in kpis[:15]: # Limitar a 15 minuts per no fer-lo infinit
             r = tbl.add_row().cells
-            r[0].text = row.get('start_time','--')
-            r[3].text = row.get('distance','0')
-            r[4].text = row.get('max_speed','0')
-            r[6].text = row.get('anomalies','')
+            num_cells = len(r)
+            if num_cells > 0: r[0].text = row.get('start_time','--')
+            if num_cells > 3: r[3].text = row.get('distance','0')
+            if num_cells > 4: r[4].text = row.get('max_speed','0')
+            if num_cells > 6: r[6].text = row.get('anomalies','')
 
     doc.add_paragraph(f"\nGenerat automàticament OTMR PRO v4.96 - {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
     buf = io.BytesIO()
