@@ -34,25 +34,162 @@ def get_base64_of_bin_file(bin_file):
 logo_base64 = get_base64_of_bin_file("assets/logo.png")
 
 t = {
-    "primary": "#0052A3", "secondary": "#FF5722", "background": "#f8fafc", "border": "#e2e8f0",
-    "on_surface": "#0f172a", "on_surface_variant": "#475569", "card_bg": "#ffffff", "shadow": "0 1px 3px rgba(0,0,0,0.1)"
+    "primary": "#006666",
+    "primary_container": "#8dedec",
+    "secondary": "#006760",
+    "background": "#e1fbff",
+    "surface_low": "#cbf9ff",
+    "surface_lowest": "#ffffff",
+    "on_surface": "#003439",
+    "on_surface_variant": "#29646a",
+    "outline": "#7eb6be",
+    "shadow": "0px 24px 48px rgba(0, 52, 57, 0.06)",
+    "glass_bg": "rgba(225, 251, 255, 0.6)"
 }
 
 st.markdown(f"""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Manrope:wght@600;800&display=swap');
-    :root {{ --primary: {t['primary']}; --secondary: {t['secondary']}; --background: {t['background']}; --on-surface: {t['on_surface']}; }}
-    .main {{ background-color: {t['background']} !important; font-family: 'Inter', sans-serif; }}
-    .stApp {{ background-color: {t['background']} !important; }}
-    h1 {{ font-family: 'Manrope', sans-serif; font-weight: 800; color: var(--on-surface); font-size: 2.2rem !important; margin-bottom: 0px; }}
-    .cockpit-card {{ background: {t['card_bg']}; padding: 1.2rem; border-radius: 12px; border: 1px solid {t['border']}; box-shadow: {t['shadow']}; margin-bottom: 1rem; }}
-    .kpi-label {{ font-size: 0.65rem; font-weight: 800; color: {t['on_surface_variant']}; text-transform: uppercase; letter-spacing: 0.1em; }}
-    .kpi-value {{ font-family: 'Manrope', sans-serif; font-size: 2.2rem; font-weight: 800; color: var(--on-surface); line-height: 1.1; }}
-    .kpi-unit {{ font-size: 0.75rem; color: var(--primary); font-weight: 700; margin-left: 4px; }}
-    .status-badge {{ display: inline-flex; align-items: center; gap: 8px; background: rgba(0, 82, 163, 0.05); padding: 8px 16px; border-radius: 20px; font-size: 0.65rem; font-weight: 800; color: var(--primary); border: 1px solid rgba(0, 82, 163, 0.1); }}
-    .pulse-dot {{ width: 8px; height: 8px; background: var(--primary); border-radius: 50%; opacity: 0.6; animation: pulse-blue 1.5s infinite; }}
-    @keyframes pulse-blue {{ 0% {{ transform: scale(0.9); opacity: 0.4; }} 70% {{ transform: scale(1.1); opacity: 1; }} 100% {{ transform: scale(0.9); opacity: 0.4; }} }}
-    .top-schematic {{ background: #ffffff; padding: 2rem 1.5rem; border-radius: 12px; border: 1px solid #e2e8f0; margin-bottom: 2rem; overflow: hidden; display: flex; justify-content: center; }}
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;800&display=swap');
+    
+    :root {{
+        --primary: {t['primary']};
+        --primary-container: {t['primary_container']};
+        --background: {t['background']};
+        --on-surface: {t['on_surface']};
+        --glass-bg: {t['glass_bg']};
+    }}
+
+    .stApp {{
+        background: linear-gradient(135deg, {t['background']} 0%, #ffffff 100%) !important;
+        font-family: 'Manrope', sans-serif;
+    }}
+
+    .main {{
+        background: transparent !important;
+    }}
+
+    h1, h2, h3 {{
+        font-family: 'Manrope', sans-serif;
+        font-weight: 800;
+        color: {t['on_surface']};
+        letter-spacing: -0.02em;
+    }}
+
+    h1 {{ font-size: 2.8rem !important; margin-bottom: 0px; }}
+
+    /* Glassmorphism Cards */
+    .cockpit-card {{
+        background: {t['glass_bg']};
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        padding: 1.5rem;
+        border-radius: 40px; /* Full rounding */
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        box-shadow: {t['shadow']};
+        margin-bottom: 1.5rem;
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }}
+
+    .cockpit-card:hover {{
+        transform: translateY(-4px);
+        background: rgba(255, 255, 255, 0.8);
+    }}
+
+    .kpi-label {{
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: {t['on_surface_variant']};
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 4px;
+    }}
+
+    .kpi-value {{
+        font-family: 'Manrope', sans-serif;
+        font-size: 2.4rem;
+        font-weight: 800;
+        color: {t['on_surface']};
+        line-height: 1.1;
+    }}
+
+    .kpi-unit {{
+        font-size: 0.8rem;
+        color: {t['primary']};
+        font-weight: 600;
+        margin-left: 6px;
+    }}
+
+    /* Buttons & Interactions */
+    div.stButton > button {{
+        background: linear-gradient(135deg, {t['primary']} 0%, {t['secondary']} 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 50px !important;
+        padding: 0.6rem 2rem !important;
+        font-weight: 600 !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 15px rgba(0, 102, 102, 0.2) !important;
+    }}
+
+    div.stButton > button:hover {{
+        transform: scale(1.02) !important;
+        box-shadow: 0 6px 20px rgba(0, 102, 102, 0.3) !important;
+    }}
+
+    /* Global Roundedness */
+    .stSelectbox, .stMultiSelect, .stSlider, .stTextInput, .stTextArea {{
+        border-radius: 20px !important;
+    }}
+    
+    .stTabs [data-baseweb="tab-list"] {{
+        background: {t['surface_low']};
+        border-radius: 30px;
+        padding: 5px;
+    }}
+    
+    .stTabs [data-baseweb="tab"] {{
+        border-radius: 25px;
+        padding: 10px 20px;
+        font-weight: 600;
+    }}
+
+    .status-badge {{
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: {t['primary_container']};
+        padding: 10px 20px;
+        border-radius: 50px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        color: {t['primary']};
+        box-shadow: {t['shadow']};
+    }}
+
+    .pulse-dot {{
+        width: 10px;
+        height: 10px;
+        background: {t['primary']};
+        border-radius: 50%;
+        animation: pulse-teal 1.5s infinite;
+    }}
+
+    @keyframes pulse-teal {{
+        0% {{ transform: scale(0.9); opacity: 0.4; box-shadow: 0 0 0 0 rgba(0, 102, 102, 0.4); }}
+        70% {{ transform: scale(1.1); opacity: 1; box-shadow: 0 0 0 10px rgba(0, 102, 102, 0); }}
+        100% {{ transform: scale(0.9); opacity: 0.4; box-shadow: 0 0 0 0 rgba(0, 102, 102, 0); }}
+    }}
+
+    /* Schematic Box */
+    .top-schematic {{
+        background: rgba(255, 255, 255, 0.5);
+        backdrop-filter: blur(10px);
+        padding: 2.5rem 1.5rem;
+        border-radius: 32px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        margin-bottom: 2.5rem;
+        box-shadow: {t['shadow']};
+    }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -76,16 +213,15 @@ def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
     W_SVG = max(x_last_s1, x_last_s2) + 60
     H_SVG = 380 # Augmentem H per donar aire als noms de dalt i baix
     
-    svg = f'<svg width="100%" height="{H_SVG}" viewBox="0 0 {W_SVG} {H_SVG}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="background:#ffffff; border-radius:12px;">'
-    svg += """<style>
-        .schematic-line{stroke:#ccd6e0;stroke-width:2.5;fill:none;stroke-linecap:round;}
-        .schematic-node{fill:#ffffff;stroke:#94a3b8;stroke-width:2;cursor:pointer;transition:all 0.2s;}
-        .schematic-node:hover{stroke:#0052A3;stroke-width:5;fill:#f1f5f9;}
-        .schematic-node-pos{fill:#0052A3;stroke:#003b79;filter:drop-shadow(0 0 5px rgba(0,82,163,0.3));}
-        .schematic-node-origin{fill:#FF5722;stroke:#d84315;}
-        .schematic-label{font-family:'Inter',sans-serif;font-size:11px;font-weight:800;fill:#334155;pointer-events:none;}
-        .schematic-signal{stroke:#f59e0b;stroke-width:2;fill:none;transition:all 0.2s;}
-        .schematic-signal:hover{stroke:#d97706;stroke-width:4;}
+    svg = f'<svg width="100%" height="{H_SVG}" viewBox="0 0 {W_SVG} {H_SVG}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="background:transparent; border-radius:32px;">'
+    svg += f"""<style>
+        .schematic-line {{ stroke:#97eaf4; stroke-width:3; fill:none; stroke-linecap:round; opacity: 0.8; }}
+        .schematic-node {{ fill:#ffffff; stroke:#7eb6be; stroke-width:1.5; cursor:pointer; transition:all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }}
+        .schematic-node:hover {{ stroke:{t['primary']}; stroke-width:3; fill:#f0feff; transform: scale(1.1); }}
+        .schematic-node-pos {{ fill:{t['primary']}; stroke:{t['secondary']}; stroke-width:2; border-radius: 50%; filter:drop-shadow(0 4px 10px rgba(0,102,102,0.3)); }}
+        .schematic-node-origin {{ fill:#FF8A65; stroke:#9b3e20; stroke-width:2; }}
+        .schematic-label {{ font-family:'Manrope',sans-serif; font-size:11px; font-weight:600; fill:{t['on_surface']}; pointer-events:none; }}
+        .schematic-signal {{ stroke:#008080; stroke-width:2.5; fill:none; stroke-linecap:round; }}
     </style>"""
     
     VIA_OFF = 5 
@@ -100,7 +236,7 @@ def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
         x = X_START + i * SPACING
         x_coords[s['id']] = x
         cls = "schematic-node-pos" if s['id']==pos_id else ("schematic-node-origin" if s['id']==origin_id else "schematic-node")
-        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{Y_MAIN-13}" width="12" height="{NODE_H}" rx="4" class="{cls}"/><text x="{x}" y="{Y_MAIN+LABEL_OFFSET+6}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
+        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{Y_MAIN-13}" width="12" height="{NODE_H}" rx="8" class="{cls}"/><text x="{x}" y="{Y_MAIN+LABEL_OFFSET+6}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
 
     x_gr = x_coords.get("GR", X_START + 2*SPACING)
     l7_st = network.get("Ramal-L7", {}).get("stations", [])
@@ -113,7 +249,7 @@ def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
         for i, s in enumerate(l7_st):
             x = x_first_l7 + i * SPACING
             cls = "schematic-node-pos" if s['id']==pos_id else ("schematic-node-origin" if s['id']==origin_id else "schematic-node")
-            svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_l7-13}" width="12" height="{NODE_H}" rx="4" class="{cls}"/><text x="{x}" y="{y_l7+LABEL_OFFSET+6}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
+            svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_l7-13}" width="12" height="{NODE_H}" rx="8" class="{cls}"/><text x="{x}" y="{y_l7+LABEL_OFFSET+6}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
 
     x_sr = x_coords.get("SR", X_START + 7*SPACING)
     l12_st = network.get("Ramal-L12", {}).get("stations", [])
@@ -126,7 +262,7 @@ def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
         for i, s in enumerate(l12_st):
             x = x_first_l12 + i * SPACING
             cls = "schematic-node-pos" if s['id']==pos_id else ("schematic-node-origin" if s['id']==origin_id else "schematic-node")
-            svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_l12-13}" width="12" height="{NODE_H}" rx="4" class="{cls}"/><text x="{x}" y="{y_l12-LABEL_OFFSET}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
+            svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_l12-13}" width="12" height="{NODE_H}" rx="8" class="{cls}"/><text x="{x}" y="{y_l12-LABEL_OFFSET}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
 
     y_s1 = Y_MAIN - 90
     x_first_s1 = x_sc + SPACING
@@ -136,7 +272,7 @@ def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
     for i, s in enumerate(s1):
         x = x_first_s1 + i * SPACING
         cls = "schematic-node-pos" if s['id']==pos_id else ("schematic-node-origin" if s['id']==origin_id else "schematic-node")
-        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_s1-13}" width="12" height="{NODE_H}" rx="4" class="{cls}"/><text x="{x}" y="{y_s1-LABEL_OFFSET}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
+        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_s1-13}" width="12" height="{NODE_H}" rx="8" class="{cls}"/><text x="{x}" y="{y_s1-LABEL_OFFSET}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
     
     y_s2 = Y_MAIN + 90
     x_first_s2 = x_sc + SPACING
@@ -146,7 +282,7 @@ def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
     for i, s in enumerate(s2):
         x = x_first_s2 + i * SPACING
         cls = "schematic-node-pos" if s['id']==pos_id else ("schematic-node-origin" if s['id']==origin_id else "schematic-node")
-        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_s2-13}" width="12" height="{NODE_H}" rx="4" class="{cls}"/><text x="{x}" y="{y_s2+LABEL_OFFSET+6}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
+        svg += f'<a href="/?station_origin={s["id"]}" target="_self"><rect x="{x-6}" y="{y_s2-13}" width="12" height="{NODE_H}" rx="8" class="{cls}"/><text x="{x}" y="{y_s2+LABEL_OFFSET+6}" text-anchor="middle" class="schematic-label">{s["id"]}</text></a>'
 
     # --- Dibuixar Senyals si n'hi ha ---
     if signals_data:
@@ -211,11 +347,10 @@ def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
                                 break
 
     svg += f'<g transform="translate(20, 15)">'
-    svg += f'<rect x="0" y="0" width="10" height="10" rx="2" fill="#ccd6e0" style="opacity:0.6;"/><text x="14" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#64748b;">VIA 2 / DESC</text>'
-    svg += f'<rect x="90" y="0" width="10" height="10" rx="2" fill="#ccd6e0"/><text x="104" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">VIA 1 / ASC</text>'
-    svg += f'<line x1="180" y1="5" x2="190" y2="5" style="stroke:#f59e0b; stroke-width:3;"/><text x="195" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">SENYAL V1</text>'
-    svg += f'<line x1="260" y1="5" x2="270" y2="5" style="stroke:#ef4444; stroke-width:3;"/><text x="275" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">SENYAL V2</text>'
-    svg += f'<rect x="340" y="0" width="10" height="10" rx="2" fill="#0052A3"/><text x="354" y="9" style="font-family:Inter; font-size:10px; font-weight:800; fill:#1e293b;">POSICIÓ ACTUAL</text>'
+    svg += f'<rect x="0" y="0" width="12" height="12" rx="4" fill="#97eaf4" style="opacity:0.8;"/><text x="18" y="10" style="font-family:Manrope; font-size:10px; font-weight:600; fill:{t["on_surface_variant"]};">VIA 2 / DESC</text>'
+    svg += f'<rect x="100" y="0" width="12" height="12" rx="4" fill="#006666" style="opacity:0.4;"/><text x="118" y="10" style="font-family:Manrope; font-size:10px; font-weight:600; fill:{t["on_surface"]};">VIA 1 / ASC</text>'
+    svg += f'<line x1="200" y1="6" x2="212" y2="6" style="stroke:#008080; stroke-width:3; stroke-linecap:round;"/><text x="218" y="10" style="font-family:Manrope; font-size:10px; font-weight:600; fill:{t["on_surface"]};">SENYAL ACTIVA</text>'
+    svg += f'<rect x="310" y="0" width="12" height="12" rx="4" fill="{t["primary"]}"/><text x="328" y="10" style="font-family:Manrope; font-size:10px; font-weight:600; fill:{t["on_surface"]};">POSICIÓ ACTUAL</text>'
     svg += f'</g>'
     svg += '</svg>'
     return svg
@@ -301,7 +436,7 @@ def main():
         else:
             st.session_state.filtered_df = None
 
-    st.markdown(f'<div style="display:flex; justify-content:space-between; align-items:center;"><div><h1>ANALISTA OTMR <span style="color:#0052A3">PRO</span></h1><p style="margin:0; font-size:0.75rem; color:#64748b; font-weight:800;">DEPARTAMENT OPERATIU - FERROCARRILS DE LA GENERALITAT DE CATALUNYA</p></div><div class="status-badge"><div class="pulse-dot"></div> MONITORITZACIÓ ACTIVA</div></div>', unsafe_allow_html=True)
+    st.markdown(f'''<div style="display:flex; justify-content:space-between; align-items:center;"><div><h1>ANALISTA OTMR <span style="color:{t["primary"]}">PRO</span></h1><p style="margin:0; font-size:0.8rem; color:{t["on_surface_variant"]}; font-weight:600; letter-spacing: 0.05em;">DEPARTAMENT OPERATIU - FERROCARRILS DE LA GENERALITAT DE CATALUNYA</p></div><div class="status-badge"><div class="pulse-dot"></div> MONITORITZACIÓ ACTIVA</div></div>''', unsafe_allow_html=True)
     st.markdown("---")
 
     st.markdown("### 🗺️ Context de l'Anàlisi")
@@ -373,7 +508,7 @@ def main():
                 st.session_state.selected_st_ui = found["display_name"]
                 st.rerun()
 
-        st.markdown(f'<p style="text-align:center; font-weight:800; color:#0052A3; margin-top:-20px; margin-bottom:25px;">📍 POSICIÓ ACTUAL: {closest}</p>', unsafe_allow_html=True)
+        st.markdown(f'<p style="text-align:center; font-weight:700; color:{t["primary"]}; margin-top:-20px; margin-bottom:25px; letter-spacing:0.02em;">📍 POSICIÓ ACTUAL: {closest}</p>', unsafe_allow_html=True)
 
         k_cols = st.columns(5)
         k_cols[0].markdown(f'<div class="cockpit-card"><div class="kpi-label">🚀 Velocitat</div><div class="kpi-value">{float(point[speed_col]):.1f}<span class="kpi-unit">KM/H</span></div></div>', unsafe_allow_html=True)
@@ -383,7 +518,7 @@ def main():
         k_cols[2].markdown(f'<div class="cockpit-card"><div class="kpi-label">🛤️ Dist. Recorreguda</div><div class="kpi-value">{dist_recorreguda:.3f}<span class="kpi-unit">KM</span></div></div>', unsafe_allow_html=True)
         
         mode = "🤖 ATO" if (ato_col and point[ato_col]==1) else "⚙️ ATP"
-        k_cols[3].markdown(f'<div class="cockpit-card"><div class="kpi-label">🕹️ Mode Actiu</div><div class="kpi-value" style="color:{"#10b981" if "ATO" in mode else "#0052A3"}">{mode}</div></div>', unsafe_allow_html=True)
+        k_cols[3].markdown(f'<div class="cockpit-card"><div class="kpi-label">🕹️ Mode Actiu</div><div class="kpi-value" style="color:{"#10b981" if "ATO" in mode else t["primary"]}">{mode}</div></div>', unsafe_allow_html=True)
         k_cols[4].markdown(f'<div class="cockpit-card"><div class="kpi-label">🚦 Propera Senyal</div><div class="kpi-value">{next_sig_str}</div></div>', unsafe_allow_html=True)
 
         st.multiselect("Senyals de Control:", df.columns.tolist(), key="selected_vars_ui", default=st.session_state.selected_vars)
@@ -391,7 +526,7 @@ def main():
         
         from plotly.subplots import make_subplots
         fig = make_subplots(rows=2 if st.session_state.selected_vars else 1, shared_xaxes=True)
-        fig.add_trace(go.Scatter(x=df[time_col], y=df[speed_col], name="Velocitat", line=dict(color="#0052A3", width=3), fill='tozeroy', fillcolor='rgba(0,82,163,0.1)'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df[time_col], y=df[speed_col], name="Velocitat", line=dict(color=t["primary"], width=3), fill='tozeroy', fillcolor='rgba(141,237,236,0.1)'), row=1, col=1)
         fig.add_vline(x=point[time_col], line_width=2, line_dash="dash", line_color="#ef4444")
         
         if ato_col:
@@ -443,7 +578,7 @@ def main():
         notes = st.text_area("Observacions Tècniques:", placeholder="Afegiu detalls sobre qualsevol anomalia detectada...", height=100)
         if st.button("🔧 DESCARREGAR INFORME OFICIAL", use_container_width=True):
             with st.spinner("Generant Word..."):
-                plt.figure(figsize=(10,4)); plt.plot(df[time_col], df[speed_col], color='#0052A3'); plt.grid(True, alpha=0.3)
+                plt.figure(figsize=(10,4)); plt.plot(df[time_col], df[speed_col], color=t["primary"]); plt.grid(True, alpha=0.3)
                 buf = io.BytesIO(); plt.savefig(buf, format='png'); plt.close()
                 doc = generate_word_report(df, log, {"u":st.session_state.current_unit}, chart_img=buf.getvalue(), notes=notes, op_events=evs)
                 st.download_button("📥 DESCARREGAR ARXIU", doc, f"Informe_FGC_{st.session_state.current_unit}.docx")
