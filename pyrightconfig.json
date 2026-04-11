@@ -8,15 +8,16 @@
     ],
     "venv": ".venv",
     "venvPath": ".",
-    "pythonPath": "./.venv/bin/python",
     "pythonVersion": "3.9",
     "typeCheckingMode": "basic",
     "useLibraryCodeForTypes": true,
     "executionEnvironments": [
         {
-            "root": ".",
-            "extraPaths": ["."]
+            "root": "."
         }
+    ],
+    "extraPaths": [
+        "."
     ]
 }
 

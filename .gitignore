@@ -17,3 +17,4 @@ _agent/
 /tmp/
 /dist/
 /.streamlit/config.toml
+kilo.json

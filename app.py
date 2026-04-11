@@ -7,8 +7,8 @@ from src.data_processing import (
     load_data, segment_by_blocks, calculate_kpis, get_suggested_mapping, 
     load_mappings, get_sheet_names, get_minute_summary, 
     get_all_stations_flat, get_event_based_summary, load_stations, get_closest_station
-)  # type: ignore
-from src.report_generator import generate_word_report  # type: ignore
+)
+from src.report_generator import generate_word_report
 import io
 import time
 import numpy as np
@@ -216,7 +216,7 @@ def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
     svg = f'<svg width="100%" height="{H_SVG}" viewBox="0 0 {W_SVG} {H_SVG}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="background:transparent; border-radius:32px;">'
     svg += f"""<style>
         .schematic-line {{ stroke:#97eaf4; stroke-width:3; fill:none; stroke-linecap:round; opacity: 0.8; }}
-        .schematic-node {{ fill:#ffffff; stroke:#7eb6be; stroke-width:1.5; cursor:pointer; transition:all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); transform-box: fill-box; transform-origin: center; }}
+        .schematic-node {{ fill:#ffffff; stroke:#7eb6be; stroke-width:1.5; cursor:pointer; transition:all 0.3s ease-out; transform-box: fill-box; transform-origin: center; }}
         .schematic-node:hover {{ stroke:{t['primary']}; stroke-width:3; fill:#f0feff; transform: scale(1.3); }}
         .schematic-node-pos {{ fill:{t['primary']}; stroke:{t['secondary']}; stroke-width:2; border-radius: 50%; filter:drop-shadow(0 4px 10px rgba(0,102,102,0.3)); }}
         .schematic-node-origin {{ fill:#FF8A65; stroke:#9b3e20; stroke-width:2; }}
@@ -495,7 +495,7 @@ def main():
         signals_data = load_signals()
         track = "Via1" if "Ascendent" in st.session_state.active_direction else "Via2"
         closest_sig, sig_dist = get_closest_signal(pk_abs, signals_data, track=track)
-        next_sig_str = f"{closest_sig['id']} ({sig_dist*1000:.0f}m)" if closest_sig else "---"
+        next_sig_str = f"{closest_sig['id']} ({(sig_dist or 0)*1000:.0f}m)" if closest_sig else "---"
 
         from src.svg_component import interactive_svg
         svg_code = render_network_schematic(origin_id, pos_id, signals_data)
@@ -568,10 +568,10 @@ def main():
         st.markdown("### 📋 Resum Operatiu")
         tab1, tab2 = st.tabs(["🚆 Esdeveniments", "📊 Log Detallat"])
         with tab1:
-            evs = get_event_based_summary(df, str(km_col), str(speed_col), str(time_col), starting_pk=start_pk, is_ascendant=("Ascendent" in st.session_state.active_direction))
+            evs = get_event_based_summary(df, str(km_col), str(speed_col), str(time_col), starting_pk=(start_pk if start_pk is not None else 0), is_ascendant=("Ascendent" in st.session_state.active_direction))
             st.dataframe(pd.DataFrame(evs), use_container_width=True, hide_index=True)
         with tab2:
-            log = get_minute_summary(df, str(time_col), str(speed_col), str(km_col), extra_cols=st.session_state.selected_vars, starting_pk=start_pk, is_ascendant=("Ascendent" in st.session_state.active_direction))
+            log = get_minute_summary(df, str(time_col), str(speed_col), str(km_col), extra_cols=st.session_state.selected_vars, starting_pk=(start_pk if start_pk is not None else 0), is_ascendant=("Ascendent" in st.session_state.active_direction))
             st.dataframe(pd.DataFrame(log), use_container_width=True, hide_index=True)
 
         st.markdown("---")

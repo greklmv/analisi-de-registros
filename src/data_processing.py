@@ -425,7 +425,7 @@ def calculate_pk_at_index(idx, df, km_col, starting_pk, is_ascendant):
     dist_km = (curr_km - init_km)
     return starting_pk + (dist_km if is_ascendant else -dist_km)
 
-def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0, is_ascendant=True, line_filter=None, signals_data=None):
+def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0.0, is_ascendant=True, line_filter=None, signals_data=None):
     """
     Detecta automàticament punts crítics en la telemetria:
     - FU (Fre d'Urgència) o Bolet (Seta).
@@ -492,7 +492,7 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0, is_ascendan
             
     return sorted(anomalies, key=lambda x: x['time'])
 
-def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0, line_filter=None, is_ascendant=True):
+def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0, line_filter=None, is_ascendant=True):
     """
     Genera un resum d'esdeveniments operatius: Sortides i Estacionaments.
     Ideal per al resum executiu net.
