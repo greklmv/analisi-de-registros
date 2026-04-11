@@ -216,8 +216,8 @@ def render_network_schematic(origin_id=None, pos_id=None, signals_data=None):
     svg = f'<svg width="100%" height="{H_SVG}" viewBox="0 0 {W_SVG} {H_SVG}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" style="background:transparent; border-radius:32px;">'
     svg += f"""<style>
         .schematic-line {{ stroke:#97eaf4; stroke-width:3; fill:none; stroke-linecap:round; opacity: 0.8; }}
-        .schematic-node {{ fill:#ffffff; stroke:#7eb6be; stroke-width:1.5; cursor:pointer; transition:all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }}
-        .schematic-node:hover {{ stroke:{t['primary']}; stroke-width:3; fill:#f0feff; transform: scale(1.1); }}
+        .schematic-node {{ fill:#ffffff; stroke:#7eb6be; stroke-width:1.5; cursor:pointer; transition:all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); transform-box: fill-box; transform-origin: center; }}
+        .schematic-node:hover {{ stroke:{t['primary']}; stroke-width:3; fill:#f0feff; transform: scale(1.3); }}
         .schematic-node-pos {{ fill:{t['primary']}; stroke:{t['secondary']}; stroke-width:2; border-radius: 50%; filter:drop-shadow(0 4px 10px rgba(0,102,102,0.3)); }}
         .schematic-node-origin {{ fill:#FF8A65; stroke:#9b3e20; stroke-width:2; }}
         .schematic-label {{ font-family:'Manrope',sans-serif; font-size:11px; font-weight:600; fill:{t['on_surface']}; pointer-events:none; }}
@@ -581,7 +581,12 @@ def main():
                 plt.figure(figsize=(10,4)); plt.plot(df[time_col], df[speed_col], color=t["primary"]); plt.grid(True, alpha=0.3)
                 buf = io.BytesIO(); plt.savefig(buf, format='png'); plt.close()
                 doc = generate_word_report(df, log, {"u":st.session_state.current_unit}, chart_img=buf.getvalue(), notes=notes, op_events=evs)
-                st.download_button("📥 DESCARREGAR ARXIU", doc, f"Informe_FGC_{st.session_state.current_unit}.docx")
+                st.download_button(
+                    "📥 DESCARREGAR ARXIU", 
+                    data=doc, 
+                    file_name=f"Informe_FGC_{st.session_state.current_unit}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
     else:
         st.markdown('<div style="text-align:center; padding:150px; opacity:0.4;"><h2>CARREGANT DADES...</h2><p>Pugeu un registre per començar l\'anàlisi operativa</p></div>', unsafe_allow_html=True)
 

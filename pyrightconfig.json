@@ -13,6 +13,12 @@
     "pythonPath": "./.venv/bin/python",
     "pythonVersion": "3.9",
     "typeCheckingMode": "basic",
-    "useLibraryCodeForTypes": true
+    "useLibraryCodeForTypes": true,
+    "executionEnvironments": [
+        {
+            "root": ".",
+            "extraPaths": ["."]
+        }
+    ]
 }
 
