@@ -135,6 +135,20 @@ st.markdown(f"""
         box-shadow: 0 6px 20px rgba(0, 102, 102, 0.3) !important;
     }}
 
+    /* Small buttons for sidebar */
+    section[data-testid="stSidebar"] div.stButton > button {{
+        padding: 0.25rem 0.5rem !important;
+        font-size: 0.65rem !important;
+        min-height: 26px !important;
+        border-radius: 8px !important;
+        margin-bottom: 0px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        display: block !important;
+        width: 100% !important;
+    }}
+
     /* Global Roundedness */
     .stSelectbox, .stMultiSelect, .stSlider, .stTextInput, .stTextArea {{
         border-radius: 20px !important;
@@ -405,10 +419,10 @@ def main():
             st.rerun()
 
         rb_c1, rb_c2 = st.columns(2)
-        if rb_c1.button("🚉 Ultrap. Estació", use_container_width=True): apply_rapid_vars("estacio")
-        if rb_c1.button("🕹️ Mode Conducció", use_container_width=True): apply_rapid_vars("conduccio")
-        if rb_c2.button("🛑 Ultrap. Senyal", use_container_width=True): apply_rapid_vars("senyal")
-        if rb_c2.button("🧹 Neteja Filtres", use_container_width=True): 
+        if rb_c1.button("🚉 Ultrap. Est.", use_container_width=True): apply_rapid_vars("estacio")
+        if rb_c1.button("🕹️ Conducció", use_container_width=True): apply_rapid_vars("conduccio")
+        if rb_c2.button("🛑 Ultrap. Seny.", use_container_width=True): apply_rapid_vars("senyal")
+        if rb_c2.button("🧹 Neteja", use_container_width=True): 
             st.session_state.selected_vars = []
             st.rerun()
 
