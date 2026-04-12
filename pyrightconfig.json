@@ -11,13 +11,7 @@
     "pythonVersion": "3.9",
     "typeCheckingMode": "basic",
     "useLibraryCodeForTypes": true,
-    "executionEnvironments": [
-        {
-            "root": ".",
-            "extraPaths": [
-                "."
-            ]
-        }
+    "extraPaths": [
+        "./"
     ]
 }
-
