@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt  # type: ignore
 from datetime import datetime
 import os
 import base64
+import io
 from src.openrouter_client import analyze_with_ai
 from src.ai_memory import load_memory, add_lesson, clear_memory
 from src.data_processing import (
@@ -14,6 +15,7 @@ from src.data_processing import (
     get_all_stations_flat, get_event_based_summary, load_stations, get_closest_station,
     get_ai_context
 )
+from src.report_generator import generate_word_report
 
 # --- CONFIGURACIÓ DE LA PÀGINA ---
 st.set_page_config(
