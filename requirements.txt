@@ -7,3 +7,4 @@ docxtpl
 matplotlib
 plotly
 pyright
+python-dotenv

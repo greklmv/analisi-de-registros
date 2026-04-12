@@ -18,3 +18,4 @@ _agent/
 /dist/
 /.streamlit/config.toml
 kilo.json
+.env

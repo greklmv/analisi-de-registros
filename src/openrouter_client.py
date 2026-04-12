@@ -2,6 +2,9 @@ import os
 import requests
 import json
 from typing import Optional, List, Dict, Any
+from dotenv import load_dotenv
+
+load_dotenv() # Load environment variables from .env file
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -16,7 +19,7 @@ def call_openrouter(
     # Intentem agafar la clau de l'entorn, si no, mirem si està a kilo.json (local o global)
     api_key = OPENROUTER_API_KEY
     if not api_key:
-        api_key = "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" # Use provided key as fallback
+        api_key = "" # Require API key from environment or .env
 
     headers = {
         "Authorization": f"Bearer {api_key}",
