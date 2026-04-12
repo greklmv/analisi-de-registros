@@ -419,9 +419,9 @@ def main():
             st.rerun()
 
         rb_c1, rb_c2 = st.columns(2)
-        if rb_c1.button("🚉 Ultrap. Est.", use_container_width=True): apply_rapid_vars("estacio")
-        if rb_c1.button("🕹️ Conducció", use_container_width=True): apply_rapid_vars("conduccio")
-        if rb_c2.button("🛑 Ultrap. Seny.", use_container_width=True): apply_rapid_vars("senyal")
+        if rb_c1.button("🚉 Estacions", use_container_width=True): apply_rapid_vars("estacio")
+        if rb_c1.button("🕹️ ATP/ATO", use_container_width=True): apply_rapid_vars("conduccio")
+        if rb_c2.button("🛑 Senyals", use_container_width=True): apply_rapid_vars("senyal")
         if rb_c2.button("🧹 Neteja", use_container_width=True): 
             st.session_state.selected_vars = []
             st.rerun()
