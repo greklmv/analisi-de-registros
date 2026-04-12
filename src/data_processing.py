@@ -7,6 +7,16 @@ import numpy as np  # type: ignore
 import streamlit as st  # type: ignore
 from datetime import datetime, timedelta
 
+def maybe_cache_data(**kwargs):
+    """Utilitat per evitar avisos de 'ScriptRunContext' quan s'executa fora de Streamlit."""
+    try:
+        import streamlit as st
+        if st.runtime.exists():
+            return st.cache_data(**kwargs)
+    except (ImportError, AttributeError):
+        pass
+    return lambda f: f
+
 def load_mappings(file_path="src/mappings.json"):
     """Load variable mappings from an external JSON file."""
     # Handle absolute path if within project
@@ -17,7 +27,7 @@ def load_mappings(file_path="src/mappings.json"):
             return json.load(f)
     return {}
 
-@st.cache_data
+@maybe_cache_data()
 def load_data(uploaded_file, sheet_name=0):
     """Suporta Excel, CSV, PDF o genera dades d'exemple amb caché."""
     if uploaded_file == "MOCK_FGC":
@@ -204,7 +214,7 @@ def get_suggested_mapping(columns, unit_model="UT 113-114"):
                 break
     return final_mapping
 
-@st.cache_data
+@maybe_cache_data()
 def extract_from_pdf(uploaded_file):
     """Extract tables or fixed-width text from PDF using pdfplumber."""
     import re
@@ -501,7 +511,6 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0, li
     
     # Carreguem dades estacions i senyals
     stations_data = load_stations()
-    from src.data_processing import load_signals, get_closest_signal
     signals_data = load_signals()
     
     # 1. Definir estats: 0 = Parat, 1 = Moviment
@@ -688,3 +697,23 @@ def generate_mock_fgc_data():
         'Mode ATO': mode_ato,
         'MATRICULA_UT': ['UT 114.22'] * rows
     })
+
+def get_ai_context(df, kpis, events) -> str:
+    """Prepara un resum textual compacte per a l'IA."""
+    if df.empty: return "No hi ha dades disponibles."
+    
+    summary = []
+    summary.append("### RESUM EXECUTIU (KPIs)")
+    summary.append(f"- Unitat: {df.get('MATRICULA_UT', ['Desconeguda'])[0]}")
+    summary.append(f"- Distància total: {kpis.get('distance', '---')} km")
+    summary.append(f"- Velocitat màxima: {kpis.get('max_speed', '---')} km/h")
+    summary.append(f"- Durada: {kpis.get('duration', '---')} segons")
+    summary.append(f"- Anomalies detectades: {kpis.get('anomalies', 'Cap')}")
+    
+    summary.append("\n### CRONOLOGIA D'ESDEVENIMENTS")
+    # Només enviem els esdeveniments més rellevants per estalviar tokens
+    for ev in events:
+        if ev.get("is_anomaly") or "Sortida" in ev["event"] or "Estacionat" in ev["event"]:
+            summary.append(f"- {ev['time']} | {ev['event']} | {ev['details']}")
+            
+    return "\n".join(summary)

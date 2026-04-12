@@ -13,11 +13,11 @@
     "useLibraryCodeForTypes": true,
     "executionEnvironments": [
         {
-            "root": "."
+            "root": ".",
+            "extraPaths": [
+                "."
+            ]
         }
-    ],
-    "extraPaths": [
-        "."
     ]
 }
 

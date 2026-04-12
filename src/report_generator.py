@@ -40,10 +40,10 @@ def safe_add_paragraph(doc, text="", style=None):
             p.add_run(text)
         return p
 
-def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_events=None, template_path="plantilla informe registros.docx"):
+def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_events=None, template_path="plantilla informe registros.docx", ai_conclusions=None):
     """
     Genera el informe Word utilizando la plantilla oficial de FGC.
-    Restaurado a la versión Pro v5.0 con soporte para eventos operativos.
+    Restaurado a la versión Pro v5.0 con soporte para eventos operativos i IA.
     """
     
     # Búsqueda de la plantilla
@@ -96,7 +96,12 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_
                 p.add_run(f"\n\n{notes if notes else '(Sense observacions addicionals)'}")
                 break
 
-    # --- 3. LÍNEA DE TIEMPO OPERATIVA (Eventos) ---
+    # --- 3. ANÀLISI IA (Opcional) ---
+    if ai_conclusions:
+        safe_add_heading(doc, "Anàlisi Intel·ligència Artificial", level=1)
+        safe_add_paragraph(doc, ai_conclusions)
+
+    # --- 4. LÍNEA DE TIEMPO OPERATIVA (Eventos) ---
     if op_events:
         safe_add_heading(doc, "Línia de Temps Operativa", level=1)
         for ev in op_events:
@@ -124,12 +129,12 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_
                     doc.add_picture(z_buf, width=Inches(3.5))
                 except: pass
 
-    # --- 4. GRÁFICO GENERAL ---
+    # --- 5. GRÁFICO GENERAL ---
     if chart_img:
         safe_add_heading(doc, "Visualització Telemetria General", level=1)
         doc.add_picture(io.BytesIO(chart_img), width=Inches(5.8))
 
-    # --- 5. TABLA DE BLOQUES / KPIS ---
+    # --- 6. TABLA DE BLOQUES / KPIS ---
     if kpis and len(doc.tables) > 1:
         tbl = doc.tables[1]
         # Limpiamos filas viejas si la tabla ya tiene contenido de ejemplo
@@ -156,7 +161,7 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_
                 if len(r) >= 7:
                     r[6].text = row_data.get('anomalies','')
 
-    doc.add_paragraph(f"\nGenerat automàticament OTMR PRO v5.0 - {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
+    doc.add_paragraph(f"\nGenerat automàticament OTMR PRO v5.0 i IA - {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
     
     target_stream = io.BytesIO()
     doc.save(target_stream)

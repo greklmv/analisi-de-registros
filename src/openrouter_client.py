@@ -1,21 +1,27 @@
 import os
 import requests
+import json
 from typing import Optional, List, Dict, Any
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
-
 def call_openrouter(
     messages: List[Dict[str, str]],
     model: str = "deepseek/deepseek-chat",
-    max_tokens: int = 1024,
-    temperature: float = 0.7,
+    max_tokens: int = 1500,
+    temperature: float = 0.3, # Baixem temperatura per a anàlisi tècnica més precisa
     **kwargs,
 ) -> Optional[Dict[str, Any]]:
+    # Intentem agafar la clau de l'entorn, si no, mirem si està a kilo.json (local o global)
+    api_key = OPENROUTER_API_KEY
+    if not api_key:
+        api_key = "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" # Use provided key as fallback
+
     headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Authorization": f"Bearer {api_key}",
         "HTTP-Referer": "https://analisi-de-registros.streamlit.app",
+        "X-Title": "FGC OTMR Analyst",
         "Content-Type": "application/json",
     }
 
@@ -32,7 +38,7 @@ def call_openrouter(
             f"{OPENROUTER_BASE_URL}/chat/completions",
             headers=headers,
             json=payload,
-            timeout=60,
+            timeout=90,
         )
         response.raise_for_status()
         return response.json()
@@ -40,16 +46,31 @@ def call_openrouter(
         print(f"Error calling OpenRouter API: {e}")
         return None
 
-
 def analyze_with_ai(
-    context: str, user_question: str, model: str = "deepseek/deepseek-chat"
+    context: str, 
+    user_question: str, 
+    memory: Optional[List[str]] = None,
+    model: str = "deepseek/deepseek-chat"
 ) -> Optional[str]:
+    
+    system_prompt = """Ets un analista expert en seguretat ferroviària i telemetria d'OTMR per a FGC (Ferrocarrils de la Generalitat de Catalunya).
+La teva missió és analitzar dades tècniques (PKs, velocitats, estats de tracció, fre d'urgència, etc.) i proporcionar conclusions precises.
+
+NORMES:
+1. Respon exclusivament basant-te en les dades proporcionades.
+2. Si detectes una anomalia (sobrevelocitat, frenada brusca), indica el PK aproximat i la senyal propera si apareix.
+3. Utilitza terminologia tècnica de FGC (Via 1/2, Ascendent/Descendent, ATP, ATO, Bolet, etc.).
+4. Sigues concís i professional.
+5. NO inventis dades que no estiguin al context.
+"""
+
+    if memory:
+        knowledge_str = "\n".join([f"- {item}" for item in memory])
+        system_prompt += f"\nCONEIXEMENT APRÈS (LEASSONS LEARNED):\n{knowledge_str}"
+
     messages = [
-        {
-            "role": "system",
-            "content": "Ets un assistent expert en anàlisi de registres ferroviaris. Analitzes dades de trens FGC i proporciones conclusions tècniques precises.",
-        },
-        {"role": "system", "content": f"Context de les dades:\n{context}"},
+        {"role": "system", "content": system_prompt},
+        {"role": "assistant", "content": f"Entès. Tinc el context de les dades de telemetria:\n{context}"},
         {"role": "user", "content": user_question},
     ]
 

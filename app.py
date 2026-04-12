@@ -3,18 +3,17 @@ import pandas as pd  # type: ignore
 import plotly.express as px  # type: ignore
 import plotly.graph_objects as go  # type: ignore
 import matplotlib.pyplot as plt  # type: ignore
-from src.data_processing import (
-    load_data, segment_by_blocks, calculate_kpis, get_suggested_mapping, 
-    load_mappings, get_sheet_names, get_minute_summary, 
-    get_all_stations_flat, get_event_based_summary, load_stations, get_closest_station
-)
-from src.report_generator import generate_word_report
-import io
-import time
-import numpy as np
 from datetime import datetime
 import os
 import base64
+from src.openrouter_client import analyze_with_ai
+from src.ai_memory import load_memory, add_lesson, clear_memory
+from src.data_processing import (
+    load_data, segment_by_blocks, calculate_kpis, get_suggested_mapping, 
+    load_mappings, get_sheet_names, get_minute_summary, 
+    get_all_stations_flat, get_event_based_summary, load_stations, get_closest_station,
+    get_ai_context
+)
 
 # --- CONFIGURACIÓ DE LA PÀGINA ---
 st.set_page_config(
@@ -566,21 +565,62 @@ def main():
         st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("### 📋 Resum Operatiu")
-        tab1, tab2 = st.tabs(["🚆 Esdeveniments", "📊 Log Detallat"])
+        tab1, tab2, tab3 = st.tabs(["🚆 Esdeveniments", "📊 Log Detallat", "🤖 Assistent IA"])
+        
+        # Generar KPIs i Esdeveniments per al context de l'IA
+        kpis = calculate_kpis(df, str(km_col), str(speed_col), str(time_col))
+        evs = get_event_based_summary(df, str(km_col), str(speed_col), str(time_col), starting_pk=(start_pk if start_pk is not None else 0), is_ascendant=("Ascendent" in st.session_state.active_direction))
+        
         with tab1:
-            evs = get_event_based_summary(df, str(km_col), str(speed_col), str(time_col), starting_pk=(start_pk if start_pk is not None else 0), is_ascendant=("Ascendent" in st.session_state.active_direction))
             st.dataframe(pd.DataFrame(evs), use_container_width=True, hide_index=True)
+            
         with tab2:
             log = get_minute_summary(df, str(time_col), str(speed_col), str(km_col), extra_cols=st.session_state.selected_vars, starting_pk=(start_pk if start_pk is not None else 0), is_ascendant=("Ascendent" in st.session_state.active_direction))
             st.dataframe(pd.DataFrame(log), use_container_width=True, hide_index=True)
 
+        with tab3:
+            st.markdown("#### 🧠 Intel·ligència Artificial Operativa")
+            ai_ctx = get_ai_context(df, kpis, evs)
+            memory = load_memory()
+            
+            if st.button("🪄 GENERAR DIAGNÒSTIC AUTOMÀTIC", use_container_width=True):
+                with st.spinner("L'IA està analitzant el registre..."):
+                    diag = analyze_with_ai(ai_ctx, "Fes un diagnòstic detallat d'aquest viatge. Busca anomalies, sobrevelocitats o comportaments que requereixin atenció.", memory=memory)
+                    if diag:
+                        st.session_state.ai_last_diag = diag
+                        # Intentem omplir les observacions si estan buides
+                        if not st.session_state.get('notes_text'):
+                            st.session_state.notes_text = diag
+            
+            if 'ai_last_diag' in st.session_state:
+                st.info(st.session_state.ai_last_diag)
+                
+                # Feedback per APRENENTATGE
+                st.markdown("---")
+                st.markdown("##### 👩‍🏫 Correcció d'Experts (Aprenentatge)")
+                with st.expander("Vols millorar el coneixement de l'IA per a futurs anàlisis?"):
+                    lesson = st.text_area("Si l'IA ha comès un error o vols que recordi una regla operativa per a aquest tram/unitat, escriu-la aquí:", placeholder="Exemple: 'Al PK 25.4 és normal un FU si hi ha proves de shunting'...")
+                    if st.button("💾 Guarda Lliçó a la Memòria"):
+                        if lesson:
+                            add_lesson(lesson)
+                            st.success("Lliçó guardada. L'IA la tindrà en compte en el pròxim anàlisi!")
+                        else:
+                            st.warning("Escriu alguna cosa per guardar.")
+            else:
+                st.write("Clica el botó superior per iniciar l'anàlisi intel·ligent.")
+
         st.markdown("---")
-        notes = st.text_area("Observacions Tècniques:", placeholder="Afegiu detalls sobre qualsevol anomalia detectada...", height=100)
+        # Ús de session_state per a les observacions per permetre auto-completat de l'IA
+        if 'notes_text' not in st.session_state: st.session_state.notes_text = ""
+        notes = st.text_area("Observacions Tècniques:", value=st.session_state.notes_text, placeholder="Afegiu detalls sobre qualsevol anomalia detectada...", height=150, key="notes_area")
+        st.session_state.notes_text = notes # Sincronitzem
+
         if st.button("🔧 DESCARREGAR INFORME OFICIAL", use_container_width=True):
             with st.spinner("Generant Word..."):
                 plt.figure(figsize=(10,4)); plt.plot(df[time_col], df[speed_col], color=t["primary"]); plt.grid(True, alpha=0.3)
                 buf = io.BytesIO(); plt.savefig(buf, format='png'); plt.close()
-                doc = generate_word_report(df, log, {"u":st.session_state.current_unit}, chart_img=buf.getvalue(), notes=notes, op_events=evs)
+                ai_conclusions = st.session_state.get('ai_last_diag')
+                doc = generate_word_report(df, log, {"u":st.session_state.current_unit}, chart_img=buf.getvalue(), notes=notes, op_events=evs, ai_conclusions=ai_conclusions)
                 st.download_button(
                     "📥 DESCARREGAR ARXIU", 
                     data=doc, 
