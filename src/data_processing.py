@@ -7,6 +7,22 @@ import numpy as np  # type: ignore
 import streamlit as st  # type: ignore
 from datetime import datetime, timedelta
 
+def load_settings(file_path="src/settings.json"):
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    full_path = os.path.join(base_dir, file_path)
+    if os.path.exists(full_path):
+        with open(full_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {
+        "OVERSPEED_THRESHOLD": 90.5,
+        "BRUSQUE_BRAKING_THRESHOLD": -7.0,
+        "STATION_STOP_DIST_M": 25.0,
+        "MOVING_SPEED_THRESHOLD": 2.0,
+        "MIN_STATION_STOP_TIME_S": 10.0
+    }
+
+SETTINGS = load_settings()
+
 def maybe_cache_data(**kwargs):
     """Utilitat per evitar avisos de 'ScriptRunContext' quan s'executa fora de Streamlit."""
     try:
@@ -127,7 +143,7 @@ def get_closest_station(pk, stations_data, line_filter=None):
     dist_m = best_station["diff"] * 1000
     abs_dist_m = abs(dist_m)
     
-    if abs_dist_m < 25: # Umbral de parada en andana (25m)
+    if abs_dist_m < SETTINGS["STATION_STOP_DIST_M"]: # Umbral de parada en andana
         return f"Aturat a {best_station['name']} ({best_station['id']})"
     elif dist_m > 0:
         return f"Rebassat {best_station['name']} (+{abs_dist_m:.0f} m)"
@@ -347,14 +363,18 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
         
         # Alertes telemètriques...
         alerts = []
-        if max_v > 90: alerts.append(f"🔴 EXCÉS VELOCITAT ({max_v:.1f} km/h)")
+        if max_v > SETTINGS["OVERSPEED_THRESHOLD"]: alerts.append(f"🔴 EXCÉS VELOCITAT ({max_v:.1f} km/h)")
         
         # ... resta d'alertes ... (mantenir la lògica original de canvis d'estat)
         
+        # Calcular deceleración con diff de tiempo si es posible
         v_diff = block[speed_col].diff().fillna(0)
-        # Deceleració mitjana en m/s² (aprox)
-        decel = (v_diff / 3.6).mean() 
-        if any(v_diff < -7): alerts.append("⚠️ FRENADA BRUSCA")
+        t_diff_s = block.index.to_series().diff().dt.total_seconds().fillna(1)
+        # Convertir v_diff (km/h) a m/s, y luego dividir por segundos -> m/s^2
+        a_m_s2 = (v_diff / 3.6) / t_diff_s
+        decel = a_m_s2.mean()
+        
+        if any(v_diff < SETTINGS["BRUSQUE_BRAKING_THRESHOLD"]): alerts.append("⚠️ FRENADA BRUSCA")
         
         # DE-DUPLICATED: Roll-back detection now happens at minute summary level
         
@@ -450,7 +470,7 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0.0, is_ascend
     bolet_cols = [c for c in df.columns if any(k in str(c).upper() for k in ["BOLET", "SETA", "EMERGÈNCIA", "EMERGENCIA"])]
     
     # 1. Detectar Sobrevelocitat (> 90.5 km/h per evitar soroll)
-    over_speed = df[df[speed_col] > 90.5]
+    over_speed = df[df[speed_col] > SETTINGS["OVERSPEED_THRESHOLD"]]
     if not over_speed.empty:
         diff = over_speed.index.to_series().diff().fillna(1)
         groups = (diff > 10).cumsum()
@@ -469,7 +489,7 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0.0, is_ascend
             anomalies.append({
                 "time": t_start,
                 "event": "🚀 SOBREVELOCITAT",
-                "details": f"Velocitat màxima de {v_max:.1f} km/h (Límit 90){sig_info}.",
+                "details": f"Velocitat màxima de {v_max:.1f} km/h (Límit {SETTINGS['OVERSPEED_THRESHOLD']:.0f}){sig_info}.",
                 "type": "SOBREVELOCITAT",
                 "pk": pk_val,
                 "severity": "Alta"
@@ -519,7 +539,7 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0, li
     df_state[speed_col] = pd.to_numeric(df_state[speed_col], errors='coerce').fillna(0)
     df_state[km_col] = pd.to_numeric(df_state[km_col], errors='coerce').fillna(0)
     
-    df_state['is_moving'] = (df_state[speed_col] > 2).astype(int) # Llindar de 2 km/h
+    df_state['is_moving'] = (df_state[speed_col] > SETTINGS["MOVING_SPEED_THRESHOLD"]).astype(int) # Llindar de moviment
     
     # 2. Agrupar estats contigus
     df_state['state_change'] = df_state['is_moving'].diff().fillna(0).abs()
@@ -551,7 +571,7 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0, li
         except: duration_sec = 0
             
         if not is_moving:
-            if duration_sec > 10:
+            if duration_sec > SETTINGS["MIN_STATION_STOP_TIME_S"]:
                 track = "Via1" if is_ascendant else "Via2"
                 sig, dist = get_closest_signal(current_pk, signals_data, line_filter, track=track)
                 sig_info = f" | {sig['id']}" if sig else ""
@@ -629,8 +649,8 @@ def calculate_kpis(df, km_col='KM', speed_col='Velocitat', time_col='Hora'):
 
         # Detecció de tipus d'anomalia
         v_diff = df[speed_col].diff().fillna(0)
-        has_brusque_braking = any(v_diff < -7)
-        has_overspeed = any(df[speed_col] > 90)
+        has_brusque_braking = any(v_diff < SETTINGS["BRUSQUE_BRAKING_THRESHOLD"])
+        has_overspeed = any(df[speed_col] > SETTINGS["OVERSPEED_THRESHOLD"])
         
         # Rollback check
         km_diff = df[km_col].diff().fillna(0)

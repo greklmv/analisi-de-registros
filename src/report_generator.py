@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import io
 import os
 import pandas as pd
+import logging
 
 def create_sparkline(data, color='#006666'):
     """Genera una imagen de mini-gráfico (sparkline) para insertar en el Word."""
@@ -22,7 +23,8 @@ def safe_add_heading(doc, text, level):
     """Añade un encabezado de forma segura."""
     try:
         doc.add_heading(text, level=level)
-    except Exception:
+    except Exception as e:
+        logging.warning(f"Error añadiendo encabezado '{text}': {e}")
         p = doc.add_paragraph()
         run = p.add_run(text)
         run.bold = True
@@ -32,7 +34,8 @@ def safe_add_paragraph(doc, text="", style=None):
     """Añade un párrafo de forma segura."""
     try:
         return doc.add_paragraph(text, style=style)
-    except Exception:
+    except Exception as e:
+        logging.warning(f"Error añadiendo párrafo: {e}")
         p = doc.add_paragraph()
         if style and ('List Bullet' in style or 'Bullet' in style):
             p.add_run("• ")
@@ -127,7 +130,8 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_
                     plt.savefig(z_buf, format='png', bbox_inches='tight')
                     plt.close()
                     doc.add_picture(z_buf, width=Inches(3.5))
-                except: pass
+                except Exception as e:
+                    logging.warning(f"Error renderizando zoom para {t_str}: {e}")
 
     # --- 5. GRÁFICO GENERAL ---
     if chart_img:

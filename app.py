@@ -457,7 +457,22 @@ def main():
     st.markdown("### 🗺️ Context de l'Anàlisi")
     ctx_c1, ctx_c2, ctx_c3 = st.columns([1,1,1.2])
     with ctx_c1: st.selectbox("Tracks / Línia:", ["S1 (Terrassa)", "S2 (Sabadell)", "L6 (Sarrià)", "L7 (Tibidabo)", "L12 (RE)", "Totes"], key="active_line")
-    with ctx_c2: st.selectbox("Sentit de la marxa:", ["Ascendent", "Descendent"], key="active_direction")
+    with ctx_c2:
+        if 'processed_data' in st.session_state and st.session_state.processed_data is not None:
+            df_temp = st.session_state.processed_data
+            km_col_temp = next((c for c in df_temp.columns if any(k in str(c).upper() for k in ['DIST', 'KM', 'PK'])), df_temp.columns[1] if len(df_temp.columns) > 1 else None)
+            if km_col_temp:
+                try:
+                    start_km = float(df_temp[km_col_temp].iloc[0])
+                    end_km = float(df_temp[km_col_temp].iloc[-1])
+                    st.session_state.active_direction = "Ascendent" if end_km >= start_km else "Descendent"
+                except:
+                    st.session_state.active_direction = "Ascendent"
+            else:
+                st.session_state.active_direction = "Ascendent"
+            st.info(f"🧭 Sentit: {st.session_state.active_direction}")
+        else:
+            st.selectbox("Sentit de la marxa:", ["Ascendent", "Descendent"], key="active_direction", disabled=True)
     
     st_options = ["Cap (Ús PK Absolut)"] + [s["display_name"] for s in get_all_stations_flat()]
     st_idx = st_options.index(st.session_state.selected_st_ui) if st.session_state.selected_st_ui in st_options else 0
@@ -541,7 +556,14 @@ def main():
         
         from plotly.subplots import make_subplots
         fig = make_subplots(rows=2 if st.session_state.selected_vars else 1, shared_xaxes=True)
-        fig.add_trace(go.Scatter(x=df[time_col], y=df[speed_col], name="Velocitat", line=dict(color=t["primary"], width=3), fill='tozeroy', fillcolor='rgba(141,237,236,0.1)'), row=1, col=1)
+        
+        # DOWNSAMPLING
+        plot_df = df
+        if len(plot_df) > 3000:
+            step = len(plot_df) // 1500
+            plot_df = plot_df.iloc[::step]
+            
+        fig.add_trace(go.Scatter(x=plot_df[time_col], y=plot_df[speed_col], name="Velocitat", line=dict(color=t["primary"], width=3), fill='tozeroy', fillcolor='rgba(141,237,236,0.1)'), row=1, col=1)
         fig.add_vline(x=point[time_col], line_width=2, line_dash="dash", line_color="#ef4444")
         
         if ato_col:
@@ -575,7 +597,7 @@ def main():
             plot_signals_recursive(active_signals)
 
         for idx, v in enumerate(st.session_state.selected_vars):
-            if v != speed_col: fig.add_trace(go.Scatter(x=df[time_col], y=df[v], name=str(v)), row=2, col=1)
+            if v != speed_col: fig.add_trace(go.Scatter(x=plot_df[time_col], y=plot_df[v], name=str(v)), row=2, col=1)
         
         fig.update_layout(height=450, margin=dict(l=0,r=0,t=20,b=0), legend=dict(orientation="h", y=1.05, x=1))
         st.plotly_chart(fig, use_container_width=True)
