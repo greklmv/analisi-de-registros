@@ -1,5 +1,5 @@
 import pandas as pd  # type: ignore
-import pdfplumber  # type: ignore  # type: ignore
+import pdfplumber  # type: ignore
 import io
 import json
 import os
@@ -7,19 +7,20 @@ import numpy as np  # type: ignore
 import streamlit as st  # type: ignore
 from datetime import datetime, timedelta
 
+from src.utils import load_json
+
 def load_settings(file_path="src/settings.json"):
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    full_path = os.path.join(base_dir, file_path)
-    if os.path.exists(full_path):
-        with open(full_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {
-        "OVERSPEED_THRESHOLD": 90.5,
-        "BRUSQUE_BRAKING_THRESHOLD": -7.0,
-        "STATION_STOP_DIST_M": 25.0,
-        "MOVING_SPEED_THRESHOLD": 2.0,
-        "MIN_STATION_STOP_TIME_S": 10.0
-    }
+    """Carrega els llindars operatius. Fallback hardcoded si no hi ha fitxer."""
+    data = load_json(file_path)
+    if data is None:
+        return {
+            "OVERSPEED_THRESHOLD": 90.5,
+            "BRUSQUE_BRAKING_THRESHOLD": -7.0,
+            "STATION_STOP_DIST_M": 25.0,
+            "MOVING_SPEED_THRESHOLD": 2.0,
+            "MIN_STATION_STOP_TIME_S": 10.0
+        }
+    return data
 
 SETTINGS = load_settings()
 
@@ -35,13 +36,7 @@ def maybe_cache_data(**kwargs):
 
 def load_mappings(file_path="src/mappings.json"):
     """Load variable mappings from an external JSON file."""
-    # Handle absolute path if within project
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    full_path = os.path.join(base_dir, file_path)
-    if os.path.exists(full_path):
-        with open(full_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {}
+    return load_json(file_path, fallback={}) or {}
 
 @maybe_cache_data()
 def load_data(uploaded_file, sheet_name=0):
@@ -71,15 +66,11 @@ def load_data(uploaded_file, sheet_name=0):
 
 def load_stations(file_path="src/stations.json"):
     """Load train stations from an external JSON file and resolve absolute PKs."""
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    full_path = os.path.join(base_dir, file_path)
-    if not os.path.exists(full_path):
+    data = load_json(file_path)
+    if not data:
         return {}
-        
+
     try:
-        with open(full_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            
         # Resolució de PKs absoluta
         # 1. Crear mapa ràpid d'ID d'estació -> PK per a lookups d'origen
         id_to_pk = {}
@@ -94,16 +85,16 @@ def load_stations(file_path="src/stations.json"):
         for sec_id, section in data.items():
             stations = section.get("stations", []).copy()
             origin_id = section.get("origin")
-            
+
             offset = 0.0
             if origin_id in id_to_pk:
                 offset = id_to_pk[origin_id]
-            
+
             for st in stations:
                 st["pk_abs"] = st["pk"] + offset
                 # Guardem a la memòria per a possibles sub-branques
                 id_to_pk[st["id"]] = st["pk_abs"]
-            
+
             resolved_data[sec_id] = section
         return resolved_data
     except Exception:
@@ -163,13 +154,7 @@ def get_all_stations_flat():
 
 def load_signals(file_path="src/signals.json"):
     """Carrega les senyals de via des d'un fitxer JSON."""
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    full_path = os.path.join(base_dir, file_path)
-    if not os.path.exists(full_path): return {}
-    try:
-        with open(full_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception: return {}
+    return load_json(file_path, fallback={}) or {}
 
 def get_closest_signal(pk, signals_data, line_filter=None, track=None):
     """Troba la senyal més propera per a un PK determinat, opcionalment filtrant per via."""
@@ -198,16 +183,20 @@ def get_closest_signal(pk, signals_data, line_filter=None, track=None):
     find_in_groups(search_space)
     return best_sig, min_dist
 
-def get_sheet_names(uploaded_file):
-    """Obté els noms de les fulles d'un fitxer Excel."""
-    file_type = uploaded_file.name.split('.')[-1].lower()
-    if file_type in ['xlsx', 'xls']:
-        try:
-            xl = pd.ExcelFile(uploaded_file)
-            return xl.sheet_names
-        except Exception:
-            return []
-    return []
+def find_nearest_signal_id(pk, signals_data, line_filter=None, is_ascendant=True):
+    """
+    Retorna l'ID de la senyal més propera al ``pk`` indicat, o ``None``.
+
+    És un wrapper de conveniència sobre ``get_closest_signal`` que selecciona
+    automàticament la via (``Via1`` ascendent / ``Via2`` descendent) i extreu
+    només l'ID. Elimina els 5 blocs duplicats que feien servir aquesta lògica
+    a ``detect_anomalies`` i ``get_event_based_summary``.
+    """
+    if not signals_data:
+        return None
+    track = "Via1" if is_ascendant else "Via2"
+    sig, _ = get_closest_signal(pk, signals_data, line_filter, track=track)
+    return sig["id"] if sig else None
 
 def get_suggested_mapping(columns, unit_model="UT 113-114"):
     """Retorna un mapeig suggerit amb normalització avanzada y cerca de subcadenes."""
@@ -274,45 +263,6 @@ def extract_from_pdf(uploaded_file):
             
         return final_df
 
-def normalize_distance(df, km_col):
-    """Detecta si la distancia está en KM o Metros y normaliza a Metros."""
-    if km_col not in df.columns:
-        return df
-    
-    vals = pd.to_numeric(df[km_col], errors='coerce').fillna(0)
-    # Heurística: Si el máximo es < 1000 y el delta es pequeño, probablemente sean KM
-    # Si el valor promedio es > 5000, probablemente sean metros (odómetro)
-    if vals.max() < 2000 and (vals.max() - vals.min()) < 150:
-        df[f"{km_col}_M"] = vals * 1000
-    else:
-        df[f"{km_col}_M"] = vals
-    return df
-
-def segment_by_blocks(df, speed_col='Velocitat'):
-    """Split the trip into operational blocks based on stops."""
-    if speed_col not in df.columns:
-        return [df]
-    
-    df[speed_col] = pd.to_numeric(df[speed_col], errors='coerce').fillna(0)
-    
-    blocks = []
-    current_block = []
-    
-    # Algoritmo de segmentación mejorado
-    for _, row in df.iterrows():
-        current_block.append(row)
-        # Si el tren está parado por más de 5 registros, cerramos bloque
-        if row[speed_col] == 0:  # type: ignore
-            # Miramos atrás (si ya hay suficientes datos)
-            if len(current_block) > 10:
-                blocks.append(pd.DataFrame(current_block))  # type: ignore
-                current_block = []
-            
-    if current_block:
-        blocks.append(pd.DataFrame(current_block))
-        
-    return [b for b in blocks if not b.empty]
-
 def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', extra_cols=None, starting_pk=None, line_filter=None, is_ascendant=True):
     """Agrupa les dades en blocs per minut amb seguiment de PK absoluta basat en estació d'origen i sentit de marxa."""
     if df.empty: return []
@@ -321,7 +271,7 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
     # Pre-càlcul del valor inicial d'odòmetre per a increments relatius
     try:
         initial_odometer = float(df[km_col].iloc[0])
-    except:
+    except (IndexError, KeyError, ValueError, TypeError):
         initial_odometer = 0.0
 
     df_temp = df.copy()
@@ -367,14 +317,16 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
         
         # ... resta d'alertes ... (mantenir la lògica original de canvis d'estat)
         
-        # Calcular deceleración con diff de tiempo si es posible
+        # Càlcul físic de deceleració: a = Δv(m/s) / Δt(s) -> m/s^2
+        # v_diff està en km/h per mostra; el dividim per 3.6 per passar a m/s.
         v_diff = block[speed_col].diff().fillna(0)
         t_diff_s = block.index.to_series().diff().dt.total_seconds().fillna(1)
-        # Convertir v_diff (km/h) a m/s, y luego dividir por segundos -> m/s^2
-        a_m_s2 = (v_diff / 3.6) / t_diff_s
-        decel = a_m_s2.mean()
-        
-        if any(v_diff < SETTINGS["BRUSQUE_BRAKING_THRESHOLD"]): alerts.append("⚠️ FRENADA BRUSCA")
+        a_m_s2 = (v_diff / 3.6) / t_diff_s  # acceleració en m/s^2
+        decel_m_s2 = a_m_s2.mean()           # deceleració mitjana del minut
+
+        # El llindar BRUSQUE_BRAKING_THRESHOLD està en m/s^2 (no en km/h per mostra).
+        if (a_m_s2 < SETTINGS["BRUSQUE_BRAKING_THRESHOLD"]).any():
+            alerts.append(f"⚠️ FRENADA BRUSCA ({a_m_s2.min():.1f} m/s²)")
         
         # DE-DUPLICATED: Roll-back detection now happens at minute summary level
         
@@ -436,6 +388,7 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM', 
             "distance": f"{total_acc_dist:,.1f} m", 
             "max_speed": f"{max_v:.1f}",
             "avg_speed": f"{avg_v:.1f}",
+            "max_decel_m_s2": float(a_m_s2.min()),
             "anomalies": ", ".join(alerts) if alerts else "",
             "speed_history": block[speed_col].tolist(),
             "has_rollback": has_rb,
@@ -479,12 +432,9 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0.0, is_ascend
             v_max = g[speed_col].max()
             idx_max = g[speed_col].idxmax()
             pk_val = calculate_pk_at_index(idx_max, df, km_col, starting_pk, is_ascendant)
-            
-            sig_info = ""
-            if signals_data:
-                track = "Via1" if is_ascendant else "Via2"
-                sig, dist = get_closest_signal(pk_val, signals_data, line_filter, track=track)
-                if sig: sig_info = f" (Prop de Senyal {sig['id']})"
+
+            sig_id = find_nearest_signal_id(pk_val, signals_data, line_filter, is_ascendant)
+            sig_info = f" (Prop de Senyal {sig_id})" if sig_id else ""
 
             anomalies.append({
                 "time": t_start,
@@ -502,12 +452,9 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0.0, is_ascend
         for idx, row in activates.iterrows():
             t = pd.to_datetime(row[time_col]).strftime('%H:%M:%S')
             pk_val = calculate_pk_at_index(idx, df, km_col, starting_pk, is_ascendant)
-            
-            sig_info = ""
-            if signals_data:
-                track = "Via1" if is_ascendant else "Via2"
-                sig, dist = get_closest_signal(pk_val, signals_data, line_filter, track=track)
-                if sig: sig_info = f" (Prop de Senyal {sig['id']})"
+
+            sig_id = find_nearest_signal_id(pk_val, signals_data, line_filter, is_ascendant)
+            sig_info = f" (Prop de Senyal {sig_id})" if sig_id else ""
 
             is_fu = any(k in str(col).upper() for k in ["FU", "URGÈNCIA", "URGENCIA"])
             label = "⚠️ FRE D'URGÈNCIA" if is_fu else "🚨 BOLET / EMERGÈNCIA"
@@ -568,13 +515,13 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0, li
             t1 = pd.to_datetime(group[time_col].iloc[0])
             t2 = pd.to_datetime(group[time_col].iloc[-1])
             duration_sec = (t2 - t1).total_seconds()
-        except: duration_sec = 0
+        except (IndexError, KeyError, ValueError, TypeError):
+            duration_sec = 0
             
         if not is_moving:
             if duration_sec > SETTINGS["MIN_STATION_STOP_TIME_S"]:
-                track = "Via1" if is_ascendant else "Via2"
-                sig, dist = get_closest_signal(current_pk, signals_data, line_filter, track=track)
-                sig_info = f" | {sig['id']}" if sig else ""
+                sig_id = find_nearest_signal_id(current_pk, signals_data, line_filter, is_ascendant)
+                sig_info = f" | {sig_id}" if sig_id else ""
                 events.append({
                     "time": start_time,
                     "event": f"🅿️ Estacionat a {loc_name}",
@@ -589,10 +536,9 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0, li
             if atp_sub and ato_sub:
                 if (group[ato_sub] == 1).sum() > (group[atp_sub] == 1).sum(): mode_l = "ATO"
 
+            sig_id = find_nearest_signal_id(current_pk, signals_data, line_filter, is_ascendant)
+            sig_info = f" | {sig_id}" if sig_id else ""
             if i > 0:
-                track = "Via1" if is_ascendant else "Via2"
-                sig, dist = get_closest_signal(current_pk, signals_data, line_filter, track=track)
-                sig_info = f" | {sig['id']}" if sig else ""
                 events.append({
                     "time": start_time,
                     "event": f"🚀 Sortida ({mode_l}) de {loc_name}",
@@ -601,9 +547,6 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0, li
                     "mode": mode_l
                 })
             else:
-                track = "Via1" if is_ascendant else "Via2"
-                sig, dist = get_closest_signal(current_pk, signals_data, line_filter, track=track)
-                sig_info = f" | {sig['id']}" if sig else ""
                 events.append({
                     "time": start_time,
                     "event": f"🚄 En circulació {mode_l} (inici)",
@@ -648,9 +591,18 @@ def calculate_kpis(df, km_col='KM', speed_col='Velocitat', time_col='Hora'):
             duration_td = float(len(df))
 
         # Detecció de tipus d'anomalia
+        # Per la frenada brusca calculem l'acceleració real en m/s^2 (físicament correcte),
+        # no la simple diferència de velocitat en km/h per mostra.
         v_diff = df[speed_col].diff().fillna(0)
-        has_brusque_braking = any(v_diff < SETTINGS["BRUSQUE_BRAKING_THRESHOLD"])
-        has_overspeed = any(df[speed_col] > SETTINGS["OVERSPEED_THRESHOLD"])
+        if time_col in cols:
+            t_diff_s = pd.to_datetime(df[time_col], errors='coerce') \
+                         .diff().dt.total_seconds().fillna(1)
+        else:
+            # Sense columna de temps assumim 1s entre mostres.
+            t_diff_s = pd.Series([1.0] * len(df), index=df.index)
+        a_m_s2 = (v_diff / 3.6) / t_diff_s
+        has_brusque_braking = bool((a_m_s2 < SETTINGS["BRUSQUE_BRAKING_THRESHOLD"]).any())
+        has_overspeed = bool((df[speed_col] > SETTINGS["OVERSPEED_THRESHOLD"]).any())
         
         # Rollback check
         km_diff = df[km_col].diff().fillna(0)

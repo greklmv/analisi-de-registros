@@ -49,11 +49,12 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_
     Restaurado a la versión Pro v5.0 con soporte para eventos operativos i IA.
     """
     
-    # Búsqueda de la plantilla
+    # Búsqueda de la plantilla (relativa a l'arrel del projecte per portabilitat)
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     possible_paths = [
         template_path,
         os.path.join(os.getcwd(), template_path),
-        "/Users/grek/IA/analisi-de-registros/plantilla informe registros.docx"
+        os.path.join(base_dir, template_path),
     ]
     
     doc = None

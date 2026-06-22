@@ -7,11 +7,11 @@ from datetime import datetime
 import os
 import base64
 import io
-from src.openrouter_client import analyze_with_ai
+from src.openrouter_client import analyze_with_ai, OpenRouterError
 from src.ai_memory import load_memory, add_lesson, clear_memory
 from src.data_processing import (
-    load_data, segment_by_blocks, calculate_kpis, get_suggested_mapping, 
-    load_mappings, get_sheet_names, get_minute_summary, 
+    load_data, calculate_kpis, get_suggested_mapping,
+    load_mappings, get_minute_summary,
     get_all_stations_flat, get_event_based_summary, load_stations, get_closest_station,
     get_ai_context
 )
@@ -466,7 +466,7 @@ def main():
                     start_km = float(df_temp[km_col_temp].iloc[0])
                     end_km = float(df_temp[km_col_temp].iloc[-1])
                     st.session_state.active_direction = "Ascendent" if end_km >= start_km else "Descendent"
-                except:
+                except (IndexError, KeyError, ValueError, TypeError):
                     st.session_state.active_direction = "Ascendent"
             else:
                 st.session_state.active_direction = "Ascendent"
@@ -623,12 +623,14 @@ def main():
             
             if st.button("🪄 GENERAR DIAGNÒSTIC AUTOMÀTIC", use_container_width=True):
                 with st.spinner("L'IA està analitzant el registre..."):
-                    diag = analyze_with_ai(ai_ctx, "Fes un diagnòstic detallat d'aquest viatge. Busca anomalies, sobrevelocitats o comportaments que requereixin atenció.", memory=memory)
-                    if diag:
+                    try:
+                        diag = analyze_with_ai(ai_ctx, "Fes un diagnòstic detallat d'aquest viatge. Busca anomalies, sobrevelocitats o comportaments que requereixin atenció.", memory=memory)
                         st.session_state.ai_last_diag = diag
                         # Intentem omplir les observacions si estan buides
                         if not st.session_state.get('notes_text'):
                             st.session_state.notes_text = diag
+                    except OpenRouterError as e:
+                        st.error(f"⚠️ No s'ha pogut generar el diagnòstic IA: {e}")
             
             if 'ai_last_diag' in st.session_state:
                 st.info(st.session_state.ai_last_diag)
