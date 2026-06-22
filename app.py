@@ -16,10 +16,11 @@ from src.data_processing import (
     get_ai_context
 )
 from src.report_generator import generate_word_report
+from src.config import VERSION, PALETTE
 
 # --- CONFIGURACIÓ DE LA PÀGINA ---
 st.set_page_config(
-    page_title="FGC | Analista OTMR Pro v4.96",
+    page_title=f"FGC | Analista OTMR Pro v{VERSION}",
     page_icon="🚆",
     layout="wide",
 )
@@ -34,19 +35,8 @@ def get_base64_of_bin_file(bin_file):
 
 logo_base64 = get_base64_of_bin_file("assets/logo.png")
 
-t = {
-    "primary": "#006666",
-    "primary_container": "#8dedec",
-    "secondary": "#006760",
-    "background": "#e1fbff",
-    "surface_low": "#cbf9ff",
-    "surface_lowest": "#ffffff",
-    "on_surface": "#003439",
-    "on_surface_variant": "#29646a",
-    "outline": "#7eb6be",
-    "shadow": "0px 24px 48px rgba(0, 52, 57, 0.06)",
-    "glass_bg": "rgba(225, 251, 255, 0.6)"
-}
+# Tokens de color centralitzats a src/config.py (abans diccionari ``t`` inline).
+t = PALETTE
 
 st.markdown(f"""
 <style>

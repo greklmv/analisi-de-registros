@@ -7,6 +7,8 @@ import os
 import pandas as pd
 import logging
 
+from src.config import VERSION
+
 def create_sparkline(data, color='#006666'):
     """Genera una imagen de mini-gráfico (sparkline) para insertar en el Word."""
     plt.figure(figsize=(1.5, 0.4))
@@ -46,7 +48,7 @@ def safe_add_paragraph(doc, text="", style=None):
 def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_events=None, template_path="plantilla informe registros.docx", ai_conclusions=None):
     """
     Genera el informe Word utilizando la plantilla oficial de FGC.
-    Restaurado a la versión Pro v5.0 con soporte para eventos operativos i IA.
+    Suport per a esdeveniments operatius i IA (versió Pro).
     """
     
     # Búsqueda de la plantilla (relativa a l'arrel del projecte per portabilitat)
@@ -166,7 +168,7 @@ def generate_word_report(df, kpis, project_info, chart_img=None, notes=None, op_
                 if len(r) >= 7:
                     r[6].text = row_data.get('anomalies','')
 
-    doc.add_paragraph(f"\nGenerat automàticament OTMR PRO v5.0 i IA - {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
+    doc.add_paragraph(f"\nGenerat automàticament OTMR PRO v{VERSION} i IA - {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}")
     
     target_stream = io.BytesIO()
     doc.save(target_stream)
