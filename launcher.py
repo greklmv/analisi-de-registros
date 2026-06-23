@@ -3,15 +3,24 @@ import sys
 import streamlit.web.cli as stcli
 
 def main():
-    # PyInstaller extrae los archivos en un directorio temporal en sys._MEIPASS
+    # PyInstaller extrae los archivos en un directorio temporal en sys._MEIPASS para --onefile
+    # Para --onedir, sys.executable apunta al ejecutable. Los datos están en _internal.
     if hasattr(sys, '_MEIPASS'):
-        os.chdir(sys._MEIPASS)
+        base_dir = sys._MEIPASS
+    else:
+        base_dir = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+        
+    internal_dir = os.path.join(base_dir, '_internal')
+    if os.path.exists(internal_dir):
+        os.chdir(internal_dir)
+    else:
+        os.chdir(base_dir)
     
     # Asegurar que se abra el navegador local
     os.environ["STREAMLIT_SERVER_HEADLESS"] = "false"
     os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
     
-    # Inyectar argumentos para streamlit
+    # El archivo app.py debe estar dentro de la carpeta actual gracias al chdir
     sys.argv = ["streamlit", "run", "app.py"]
     
     sys.exit(stcli.main())
