@@ -23,7 +23,12 @@ def main():
     # El archivo app.py debe estar dentro de la carpeta actual gracias al chdir
     sys.argv = ["streamlit", "run", "app.py"]
     
-    sys.exit(stcli.main())
+    try:
+        sys.exit(stcli.main())
+    except Exception as e:
+        print(f"Error fatal: {e}")
+        input("Presiona Enter para salir...")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
