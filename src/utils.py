@@ -42,23 +42,24 @@ def load_json(file_path: str, fallback: Any = None) -> Any:
     except (json.JSONDecodeError, OSError):
         return fallback
 
-from src.config import PATHS
 
 def apply_universal_mapping(df: pd.DataFrame, train_type: str = "DEFAULT") -> pd.DataFrame:
     """
     Renombra les columnes del DataFrame basant-se en mappings.json.
     Així tot el sistema intern opera sobre noms estàndard (ex: VELOCIDAD).
     """
+    # Import diferit per evitar import circular (src.config importa src.utils).
+    from src.config import PATHS
     mappings_data = load_json(PATHS["mappings"], fallback={})
     if not mappings_data:
         return df
 
     # Utilitzem UT 112 com a fallback si el tren no està definit
     mapping_dict = mappings_data.get(train_type, mappings_data.get("UT 112", {}))
-    
+
     # Invertim: { "Nom_Excel": "Nom_Standard" }
     rename_dict = {v: k for k, v in mapping_dict.items()}
-    
+
     return df.rename(columns=rename_dict)
 
 # ---------------------------------------------------------------------------

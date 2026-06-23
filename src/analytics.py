@@ -174,7 +174,14 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0.0,
     df_eval = df.copy()
     if 'ACCELERACION' not in df_eval.columns:
         v_diff = df_eval[speed_col].diff().fillna(0)
-        t_diff_s = df_eval.index.to_series().diff().dt.total_seconds().fillna(1)
+        # t_diff ha de derivar-se de la columna de temps real (no de l'index,
+        # que pot ser numèric si el registre no s'ha indexat per data).
+        if time_col in df_eval.columns:
+            t_series = pd.to_datetime(df_eval[time_col], errors='coerce')
+            t_diff_s = t_series.diff().dt.total_seconds().fillna(1)
+        else:
+            # Sense columna de temps: assumim 1s entre mostres.
+            t_diff_s = pd.Series([1.0] * len(df_eval), index=df_eval.index)
         df_eval['ACCELERACION'] = (v_diff / 3.6) / t_diff_s
 
     # Inyectamos settings locales para que @OVERSPEED_THRESHOLD funcione
@@ -196,7 +203,12 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0.0,
             continue
             
         if not matches.empty:
-            diff = matches.index.to_series().diff().dt.total_seconds().fillna(100)
+            # Agrupem mostres contigües (delta horari > 10s = nou grup).
+            if time_col in matches.columns:
+                t_series = pd.to_datetime(matches[time_col], errors='coerce')
+                diff = t_series.diff().dt.total_seconds().fillna(100)
+            else:
+                diff = matches.index.to_series().diff().fillna(100)
             groups = (diff > 10).cumsum()
             for _, g in matches.groupby(groups):
                 t_start = pd.to_datetime(g[time_col].iloc[0]).strftime('%H:%M:%S')
@@ -353,12 +365,17 @@ def calculate_kpis(df, km_col='KM', speed_col='Velocitat', time_col='Hora'):
         if km_col not in cols or speed_col not in cols:
             return None
 
+        # NO MUTAR el DataFrame del caller: treballem sobre una còpia local.
+        # Abans es feia df[speed_col] = ... directament, modificant les dades
+        # de l'usuari i provocant efectes secundaris entre crides.
+        df = df.copy()
+
         # Conversió a numèric per seguretat
         df[speed_col] = pd.to_numeric(df[speed_col], errors='coerce').fillna(0)
-        
+
         # Filtro Anti-Ruido: Suavizado EMA
         df[speed_col] = df[speed_col].ewm(span=3, adjust=False).mean()
-        
+
         df[km_col] = pd.to_numeric(df[km_col], errors='coerce').fillna(0)
 
         raw_start_km = float(df[km_col].iloc[0])
