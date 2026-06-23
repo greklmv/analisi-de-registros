@@ -17,6 +17,7 @@ from src.data_processing import (
 )
 from src.report_generator import generate_word_report
 from src.config import VERSION, PALETTE
+from src.update_checker import check_for_updates
 
 # --- CONFIGURACIÓ DE LA PÀGINA ---
 st.set_page_config(
@@ -24,6 +25,8 @@ st.set_page_config(
     page_icon="🚆",
     layout="wide",
 )
+
+check_for_updates()
 
 # --- TEMA I ESTILS ---
 if 'theme_mode' not in st.session_state: st.session_state.theme_mode = "CLAR (Swiss)"
