@@ -66,7 +66,7 @@ from src.geo import (  # noqa: E402,F401
 # Càrrega de dades (Excel, CSV, PDF, mock)
 # ---------------------------------------------------------------------------
 @maybe_cache_data()
-def load_data(uploaded_file, sheet_name=0):
+def load_data(uploaded_file, sheet_name=0, train_type="DEFAULT"):
     """Suporta Excel, CSV, PDF o genera dades d'exemple amb caché."""
     if uploaded_file == "MOCK_FGC":
         return generate_mock_fgc_data()
@@ -81,6 +81,10 @@ def load_data(uploaded_file, sheet_name=0):
         df = extract_from_pdf(uploaded_file)
     else:
         raise ValueError("Format de fitxer no compatible. Usa Excel o PDF.")
+
+    # 1. Aplicar Capa de Normalización (Universal Mapper)
+    from src.utils import apply_universal_mapping
+    df = apply_universal_mapping(df, train_type=train_type)
 
     # Normalització inicial de PK si existeix
     km_potential = next((c for c in df.columns if any(k in str(c).upper() for k in ['DISTANCIA', 'KM', 'X_UT', 'DIST_'])), None)

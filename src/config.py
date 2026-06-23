@@ -61,15 +61,29 @@ DEFAULT_SETTINGS = {
 }
 
 
-def load_settings(file_path: str = PATHS["settings"]) -> dict[str, Any]:
+def load_settings(train_type: str = "DEFAULT", file_path: str = PATHS["settings"]) -> dict[str, Any]:
     """Carrega els llindars operatius des de ``settings.json`` amb fallback."""
     data = load_json(file_path)
     if not isinstance(data, dict) or not data:
         return dict(DEFAULT_SETTINGS)
+    
+    # Suportem el format de perfils (diccionari de diccionaris)
+    if train_type in data and isinstance(data[train_type], dict):
+        return data[train_type]
+    elif "DEFAULT" in data and isinstance(data["DEFAULT"], dict):
+        return data["DEFAULT"]
+        
     return data
 
 
-# Lazy-load: només es llegeix settings.json una vegada quan aquest mòdul
-# s'importa. D'aquesta forma ``from src.config import SETTINGS`` funciona
-# a qualsevol altre mòdul sense haver de cridar load_settings().
+# Lazy-load inicial per defecte
 SETTINGS: dict[str, Any] = load_settings()
+
+
+def reload_settings(train_type: str = "DEFAULT") -> dict[str, Any]:
+    """
+    Torna a carregar ``settings.json`` i actualitza ``SETTINGS`` in-place.
+    """
+    global SETTINGS
+    SETTINGS = load_settings(train_type)
+    return SETTINGS

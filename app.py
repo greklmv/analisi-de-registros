@@ -388,6 +388,11 @@ def main():
         st.markdown("### 📁 Control Registres")
         uploaded_file = st.file_uploader("", type=["xlsx", "csv", "pdf"], label_visibility="collapsed")
         unit_model = st.selectbox("Tren Seleccionat:", ["UT 113-114", "UT 112", "UT 115"], key="current_unit")
+        
+        # Recargar los settings (límites físicos) con el perfil correcto
+        from src.config import reload_settings
+        reload_settings(unit_model)
+        
         demo_mode = st.toggle("Activar Mode Demo", value=False)
         st.markdown("---")
         st.markdown("### 🎯 Anàlisi Ràpid")
@@ -471,9 +476,11 @@ def main():
     st_idx = st_options.index(st.session_state.selected_st_ui) if st.session_state.selected_st_ui in st_options else 0
     with ctx_c3: st.selectbox("📍 Origen (Calibratge PK):", st_options, index=st_idx, key="selectbox_st_ui", on_change=lambda: st.session_state.update(selected_st_ui=st.session_state.selectbox_st_ui))
 
-    key_id = "DEMOFIX" if demo_mode else (uploaded_file.name if uploaded_file else None)
+    base_key = "DEMOFIX" if demo_mode else (uploaded_file.name if uploaded_file else None)
+    key_id = f"{base_key}_{unit_model}" if base_key else None
+    
     if key_id and (st.session_state.processed_data is None or key_id != st.session_state.last_loaded_key):
-        df = load_data(uploaded_file if not demo_mode else "MOCK_FGC")
+        df = load_data(uploaded_file if not demo_mode else "MOCK_FGC", train_type=unit_model)
         st.session_state.processed_data, st.session_state.last_loaded_key = df, key_id
 
     # Obtenir el DF adequat segons el filtre
@@ -592,15 +599,32 @@ def main():
         for idx, v in enumerate(st.session_state.selected_vars):
             if v != speed_col: fig.add_trace(go.Scatter(x=plot_df[time_col], y=plot_df[v], name=str(v)), row=2, col=1)
         
+        # Generar KPIs i Esdeveniments (pujat aquí per poder pintar anomalies al gràfic)
+        kpis = calculate_kpis(df, str(km_col), str(speed_col), str(time_col))
+        evs = get_event_based_summary(df, str(km_col), str(speed_col), str(time_col), starting_pk=(start_pk if start_pk is not None else 0), is_ascendant=("Ascendent" in st.session_state.active_direction))
+
+        # Dibuixar Eventos Sombreados (Anomalías)
+        try:
+            for ev in evs:
+                if ev.get("is_anomaly"):
+                    # ev['time'] is 'HH:MM:SS'. We combine it with the date of the first record
+                    base_date = pd.to_datetime(df[time_col].iloc[0]).strftime('%Y-%m-%d')
+                    ev_time = pd.to_datetime(f"{base_date} {ev['time']}")
+                    fig.add_vrect(
+                        x0=ev_time - pd.Timedelta(seconds=10), 
+                        x1=ev_time + pd.Timedelta(seconds=10),
+                        fillcolor="red", opacity=0.15, layer="below", line_width=0,
+                        annotation_text=ev["event"], annotation_position="top left",
+                        annotation_font_size=10, annotation_font_color="red"
+                    )
+        except Exception as e:
+            pass # Si falla el parseo de tiempo, no rompemos el gráfico
+            
         fig.update_layout(height=450, margin=dict(l=0,r=0,t=20,b=0), legend=dict(orientation="h", y=1.05, x=1))
         st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("### 📋 Resum Operatiu")
         tab1, tab2, tab3 = st.tabs(["🚆 Esdeveniments", "📊 Log Detallat", "🤖 Assistent IA"])
-        
-        # Generar KPIs i Esdeveniments per al context de l'IA
-        kpis = calculate_kpis(df, str(km_col), str(speed_col), str(time_col))
-        evs = get_event_based_summary(df, str(km_col), str(speed_col), str(time_col), starting_pk=(start_pk if start_pk is not None else 0), is_ascendant=("Ascendent" in st.session_state.active_direction))
         
         with tab1:
             st.dataframe(pd.DataFrame(evs), use_container_width=True, hide_index=True)

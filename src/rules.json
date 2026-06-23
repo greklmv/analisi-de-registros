@@ -1,0 +1,14 @@
+{
+  "SOBREVELOCITAT": {
+    "condition": "VELOCIDAD > @OVERSPEED_THRESHOLD",
+    "event_label": "🚀 SOBREVELOCITAT",
+    "severity": "Alta",
+    "message": "Velocitat crítica detectada."
+  },
+  "FRENADA_BRUSCA": {
+    "condition": "ACCELERACION < @BRUSQUE_BRAKING_THRESHOLD",
+    "event_label": "⚠️ FRENADA BRUSCA",
+    "severity": "Mitjana",
+    "message": "Deceleració severa detectada."
+  }
+}

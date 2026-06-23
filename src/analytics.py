@@ -39,6 +39,10 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM',
 
     df_temp = df.copy()
     df_temp[speed_col] = pd.to_numeric(df_temp[speed_col], errors='coerce').fillna(0)
+    
+    # Filtro Anti-Ruido: Suavizado EMA (Exponential Moving Average) para evitar falsos picos
+    df_temp[speed_col] = df_temp[speed_col].ewm(span=3, adjust=False).mean()
+    
     df_temp[km_col] = pd.to_numeric(df_temp[km_col], errors='coerce').fillna(0)
 
     df_temp[time_col] = pd.to_datetime(df_temp[time_col], errors='coerce')
@@ -155,42 +159,69 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM',
 def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0.0,
                      is_ascendant=True, line_filter=None, signals_data=None):
     """
-    Detecta automàticament punts crítics en la telemetria:
-    - FU (Fre d'Urgència) o Bolet (Seta).
-    - Sobrevelocitats (> 90 km/h).
-    Inclou la senyal més propera per a cada anomalia.
+    Detecta automàticament punts crítics en la telemetria utilitzant rules.json (Motor de Regles).
+    - FU, Bolet, sobrevelocitats, etc.
     """
     anomalies = []
     if df.empty: return anomalies
 
-    # Mapping de variables de seguretat
+    import os
+    from src.utils import load_json
+    
+    rules = load_json(os.path.join(os.path.dirname(__file__), "rules.json"), fallback={})
+    
+    # 1. Generem columnes temporals per al motor de regles (ex: ACCELERACION)
+    df_eval = df.copy()
+    if 'ACCELERACION' not in df_eval.columns:
+        v_diff = df_eval[speed_col].diff().fillna(0)
+        t_diff_s = df_eval.index.to_series().diff().dt.total_seconds().fillna(1)
+        df_eval['ACCELERACION'] = (v_diff / 3.6) / t_diff_s
+
+    # Inyectamos settings locales para que @OVERSPEED_THRESHOLD funcione
+    env = dict(SETTINGS)
+    
+    # 2. Avaluar regles definides a rules.json
+    for rule_id, rule_def in rules.items():
+        cond = rule_def.get("condition")
+        if not cond: continue
+        
+        cond_safe = cond.replace("VELOCIDAD", f"`{speed_col}`")
+        
+        try:
+            mask = df_eval.eval(cond_safe, local_dict=env)
+            matches = df_eval[mask]
+        except Exception as e:
+            import logging
+            logging.warning(f"Error evaluando regla {rule_id}: {e}")
+            continue
+            
+        if not matches.empty:
+            diff = matches.index.to_series().diff().dt.total_seconds().fillna(100)
+            groups = (diff > 10).cumsum()
+            for _, g in matches.groupby(groups):
+                t_start = pd.to_datetime(g[time_col].iloc[0]).strftime('%H:%M:%S')
+                v_max = g[speed_col].max()
+                idx_max = g[speed_col].idxmax()
+                pk_val = calculate_pk_at_index(idx_max, df, km_col, starting_pk, is_ascendant)
+    
+                sig_id = find_nearest_signal_id(pk_val, signals_data, line_filter, is_ascendant)
+                sig_info = f" (Prop de Senyal {sig_id})" if sig_id else ""
+    
+                msg = rule_def.get("message", "Anomalia").replace("@OVERSPEED_THRESHOLD", str(env.get('OVERSPEED_THRESHOLD')))
+                msg = msg.replace("@BRUSQUE_BRAKING_THRESHOLD", str(env.get('BRUSQUE_BRAKING_THRESHOLD')))
+                
+                anomalies.append({
+                    "time": t_start,
+                    "event": rule_def.get("event_label", rule_id),
+                    "details": f"{msg} Velocitat màx: {v_max:.1f} km/h{sig_info}.",
+                    "type": rule_id,
+                    "pk": pk_val,
+                    "severity": rule_def.get("severity", "Mitjana")
+                })
+
+    # 3. Mantenim detecció estricta de FU / Bolet antiga per compatibilitat fins que s'afegeixin a rules.json
     fu_cols = [c for c in df.columns if any(k in str(c).upper() for k in ["FU", "FRE D'URGÈNCIA", "URGENCIA", "N-FE"])]
     bolet_cols = [c for c in df.columns if any(k in str(c).upper() for k in ["BOLET", "SETA", "EMERGÈNCIA", "EMERGENCIA"])]
-
-    # 1. Detectar Sobrevelocitat
-    over_speed = df[df[speed_col] > SETTINGS["OVERSPEED_THRESHOLD"]]
-    if not over_speed.empty:
-        diff = over_speed.index.to_series().diff().fillna(1)
-        groups = (diff > 10).cumsum()
-        for _, g in over_speed.groupby(groups):
-            t_start = pd.to_datetime(g[time_col].iloc[0]).strftime('%H:%M:%S')
-            v_max = g[speed_col].max()
-            idx_max = g[speed_col].idxmax()
-            pk_val = calculate_pk_at_index(idx_max, df, km_col, starting_pk, is_ascendant)
-
-            sig_id = find_nearest_signal_id(pk_val, signals_data, line_filter, is_ascendant)
-            sig_info = f" (Prop de Senyal {sig_id})" if sig_id else ""
-
-            anomalies.append({
-                "time": t_start,
-                "event": "🚀 SOBREVELOCITAT",
-                "details": f"Velocitat màxima de {v_max:.1f} km/h (Límit {SETTINGS['OVERSPEED_THRESHOLD']:.0f}){sig_info}.",
-                "type": "SOBREVELOCITAT",
-                "pk": pk_val,
-                "severity": "Alta"
-            })
-
-    # 2. Detectar FU / Bolet (Canvis 0 -> 1)
     for col in list(dict.fromkeys(fu_cols + bolet_cols)):
         vals = pd.to_numeric(df[col], errors='coerce').fillna(0)
         activates = df[(vals.shift(1) == 0) & (vals == 1)]
@@ -324,6 +355,10 @@ def calculate_kpis(df, km_col='KM', speed_col='Velocitat', time_col='Hora'):
 
         # Conversió a numèric per seguretat
         df[speed_col] = pd.to_numeric(df[speed_col], errors='coerce').fillna(0)
+        
+        # Filtro Anti-Ruido: Suavizado EMA
+        df[speed_col] = df[speed_col].ewm(span=3, adjust=False).mean()
+        
         df[km_col] = pd.to_numeric(df[km_col], errors='coerce').fillna(0)
 
         raw_start_km = float(df[km_col].iloc[0])
