@@ -10,5 +10,23 @@
     "event_label": "⚠️ FRENADA BRUSCA",
     "severity": "Mitjana",
     "message": "Deceleració severa detectada."
+  },
+  "FU_SISTEMA": {
+    "condition": "FU_SISTEMA == 1",
+    "event_label": "🛑 URGÈNCIA (Sistema)",
+    "severity": "Crítica",
+    "message": "Frenada d'urgència comandada pel sistema (Possible Ultrapassament ATP)."
+  },
+  "BOLET_EMERGENCIA": {
+    "condition": "BOLET == 1",
+    "event_label": "🍄 EMERGÈNCIA (Bolet)",
+    "severity": "Crítica",
+    "message": "Frenada d'emergència per pulsadors (Seta)."
+  },
+  "FU_MANIPULADOR": {
+    "condition": "FU_MANIPULADOR == 1",
+    "event_label": "🕹️ URGÈNCIA (Manipulador)",
+    "severity": "Alta",
+    "message": "Frenada d'urgència accionada pel maquinista."
   }
 }

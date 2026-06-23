@@ -41,5 +41,20 @@
         "DISTANCIA": "Distància (m)",
         "FECHA - HORA": "Fecha - Hora",
         "AAA": "Velocitat (km/h)"
+    },
+    "UT 115": {
+        "VELOCIDAD": "SYS_SPEED (km/h)",
+        "DISTANCIA": "Distancia (km)",
+        "VELOCIDAD DE CONSIGNA": "MC_SPEEDPOS (kmh)",
+        "MODO ATP": "ATC_ATP",
+        "MODO ATO": "ATC_ATO",
+        "FU_SISTEMA": "URGEN_FRE",
+        "BOLET": "EMER_FRE",
+        "FU_MANIPULADOR": "MC_FU_C1",
+        "ANTIPAT": "SOREJAT",
+        "PUERTAS_AS": "LLA_PORT_AS",
+        "PUERTAS_DS": "LLA_PORT_DS",
+        "BC_WSP": "BC_WSP",
+        "TC_WSP": "TC_WSP"
     }
 }
