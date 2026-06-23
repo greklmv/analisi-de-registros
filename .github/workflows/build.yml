@@ -31,12 +31,12 @@ jobs:
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
         run: |
-          pyinstaller --noconfirm --onedir --console --add-data "src;src" --add-data "assets;assets" --add-data "plantilla informe registros.docx;." --add-data "pk's señales.docx;." --add-data "ESPECIFICACIONS_TECNIQUES_FGC.md;." --copy-metadata streamlit --collect-all streamlit --collect-all plotly --collect-all pdfplumber launcher.py
+          pyinstaller --noconfirm --onedir --console --add-data "app.py;." --add-data "src;src" --add-data "assets;assets" --add-data "plantilla informe registros.docx;." --add-data "pk's señales.docx;." --add-data "ESPECIFICACIONS_TECNIQUES_FGC.md;." --copy-metadata streamlit --collect-all streamlit --collect-all plotly --collect-all pdfplumber launcher.py
           
       - name: Build with PyInstaller (macOS)
         if: runner.os == 'macOS'
         run: |
-          pyinstaller --noconfirm --onedir --console --add-data "src:src" --add-data "assets:assets" --add-data "plantilla informe registros.docx:." --add-data "pk's señales.docx:." --add-data "ESPECIFICACIONS_TECNIQUES_FGC.md:." --copy-metadata streamlit --collect-all streamlit --collect-all plotly --collect-all pdfplumber launcher.py
+          pyinstaller --noconfirm --onedir --console --add-data "app.py:." --add-data "src:src" --add-data "assets:assets" --add-data "plantilla informe registros.docx:." --add-data "pk's señales.docx:." --add-data "ESPECIFICACIONS_TECNIQUES_FGC.md:." --copy-metadata streamlit --collect-all streamlit --collect-all plotly --collect-all pdfplumber launcher.py
 
       - name: Zip build (Windows)
         if: runner.os == 'Windows'
