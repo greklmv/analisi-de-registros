@@ -1,0 +1,41 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, mejoras/**]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install streamlit pandas numpy pdfplumber openpyxl plotly matplotlib python-docx requests python-dotenv pytest
+
+      - name: Run tests
+        run: python -m pytest tests/ -v --tb=short
+
+      - name: Check import structure (no circular)
+        run: |
+          python -c "
+          from src.config import VERSION, SETTINGS, PALETTE, PATHS, reload_settings
+          from src.geo import load_stations, get_closest_signal, find_nearest_signal_id, calculate_pk_at_index
+          from src.analytics import calculate_kpis, get_minute_summary, get_event_based_summary, detect_anomalies, get_ai_context
+          from src.utils import load_json, normalize_distance, segment_by_blocks, get_sheet_names
+          from src.data_processing import load_data, load_settings, load_stations, calculate_kpis
+          print('All imports OK — no circular dependencies')
+          "
