@@ -1,0 +1,142 @@
+{
+  "running": false,
+  "startedAt": "2026-06-22T18:25:56.019Z",
+  "workers": {
+    "map": {
+      "runCount": 7,
+      "successCount": 7,
+      "failureCount": 0,
+      "averageDurationMs": 0.5714285714285714,
+      "isRunning": false,
+      "nextRun": "2026-06-23T06:32:15.735Z",
+      "lastStartedAt": "2026-06-22T20:18:50.935Z",
+      "lastRun": "2026-06-22T20:18:50.935Z"
+    },
+    "audit": {
+      "runCount": 6,
+      "successCount": 6,
+      "failureCount": 0,
+      "averageDurationMs": 803076.3333333334,
+      "isRunning": false,
+      "nextRun": "2026-06-23T06:27:15.735Z",
+      "lastStartedAt": "2026-06-22T20:31:31.639Z",
+      "lastRun": "2026-06-22T20:48:39.087Z"
+    },
+    "optimize": {
+      "runCount": 4,
+      "successCount": 4,
+      "failureCount": 0,
+      "averageDurationMs": 1086079.75,
+      "isRunning": false,
+      "nextRun": "2026-06-23T06:32:15.735Z",
+      "lastStartedAt": "2026-06-22T20:16:56.305Z",
+      "lastRun": "2026-06-22T20:31:31.638Z"
+    },
+    "consolidate": {
+      "runCount": 4,
+      "successCount": 4,
+      "failureCount": 0,
+      "averageDurationMs": 0.75,
+      "isRunning": false,
+      "nextRun": "2026-06-23T06:47:15.735Z",
+      "lastStartedAt": "2026-06-22T20:16:56.303Z",
+      "lastRun": "2026-06-22T20:16:56.305Z"
+    },
+    "testgaps": {
+      "runCount": 4,
+      "successCount": 3,
+      "failureCount": 1,
+      "averageDurationMs": 1112327.75,
+      "isRunning": false,
+      "nextRun": "2026-06-23T06:21:39.053Z",
+      "lastStartedAt": "2026-06-22T20:22:59.512Z",
+      "lastRun": "2026-06-22T20:48:39.071Z"
+    },
+    "predict": {
+      "runCount": 0,
+      "successCount": 0,
+      "failureCount": 0,
+      "averageDurationMs": 0,
+      "isRunning": false
+    },
+    "document": {
+      "runCount": 0,
+      "successCount": 0,
+      "failureCount": 0,
+      "averageDurationMs": 0,
+      "isRunning": false
+    }
+  },
+  "config": {
+    "autoStart": false,
+    "logDir": "/Users/grek/IA/analisi-de-registros/.claude-flow/logs",
+    "stateFile": "/Users/grek/IA/analisi-de-registros/.claude-flow/daemon-state.json",
+    "maxConcurrent": 2,
+    "workerTimeoutMs": 960000,
+    "resourceThresholds": {
+      "maxCpuLoad": 8,
+      "minFreeMemoryPercent": 5
+    },
+    "ttlMs": 43200000,
+    "idleShutdownMs": 0,
+    "workers": [
+      {
+        "type": "map",
+        "intervalMs": 900000,
+        "offsetMs": 0,
+        "priority": "normal",
+        "description": "Codebase mapping",
+        "enabled": true
+      },
+      {
+        "type": "audit",
+        "intervalMs": 600000,
+        "offsetMs": 120000,
+        "priority": "critical",
+        "description": "Security analysis",
+        "enabled": true
+      },
+      {
+        "type": "optimize",
+        "intervalMs": 900000,
+        "offsetMs": 240000,
+        "priority": "high",
+        "description": "Performance optimization",
+        "enabled": true
+      },
+      {
+        "type": "consolidate",
+        "intervalMs": 1800000,
+        "offsetMs": 360000,
+        "priority": "low",
+        "description": "Memory consolidation",
+        "enabled": true
+      },
+      {
+        "type": "testgaps",
+        "intervalMs": 1200000,
+        "offsetMs": 480000,
+        "priority": "normal",
+        "description": "Test coverage analysis",
+        "enabled": true
+      },
+      {
+        "type": "predict",
+        "intervalMs": 600000,
+        "offsetMs": 0,
+        "priority": "low",
+        "description": "Predictive preloading",
+        "enabled": false
+      },
+      {
+        "type": "document",
+        "intervalMs": 3600000,
+        "offsetMs": 0,
+        "priority": "low",
+        "description": "Auto-documentation",
+        "enabled": false
+      }
+    ]
+  },
+  "savedAt": "2026-06-23T06:33:19.434Z"
+}

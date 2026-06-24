@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-06-22T20:18:50.935Z",
+  "projectRoot": "/Users/grek/IA/analisi-de-registros",
+  "structure": {
+    "hasPackageJson": false,
+    "hasTsConfig": false,
+    "hasClaudeConfig": true,
+    "hasClaudeFlow": true
+  },
+  "scannedAt": 1782159530935
+}
