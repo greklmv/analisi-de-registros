@@ -282,6 +282,9 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0,
     df_state = df.copy()
     df_state[speed_col] = pd.to_numeric(df_state[speed_col], errors='coerce').fillna(0)
     df_state[km_col] = pd.to_numeric(df_state[km_col], errors='coerce').fillna(0)
+    df_state[time_col] = pd.to_datetime(df_state[time_col], errors='coerce')
+    df_state = df_state.dropna(subset=[time_col])
+    if df_state.empty: return []
 
     df_state['is_moving'] = (df_state[speed_col] > SETTINGS["MOVING_SPEED_THRESHOLD"]).astype(int)
 
