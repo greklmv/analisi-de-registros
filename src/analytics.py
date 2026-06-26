@@ -323,7 +323,7 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0,
                 sig_info = f" | {sig_id}" if sig_id else ""
                 events.append({
                     "time": start_time,
-                    "event": f"🅿️ Estacionat a {loc_name}",
+                    "event": f"🅿️ Estacionat | Pos: {loc_name}",
                     "details": f"Aturat durant {int(duration_sec)}s (PK {current_pk:.3f}){sig_info}",
                     "pk": current_pk
                 })
@@ -340,7 +340,7 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0,
             if i > 0:
                 events.append({
                     "time": start_time,
-                    "event": f"🚀 Sortida ({mode_l}) de {loc_name}",
+                    "event": f"🚀 Inici moviment ({mode_l}) | Pos: {loc_name}",
                     "details": f"Velocitat màx: {group[speed_col].max():.1f} km/h (PK {current_pk:.3f}){sig_info}",
                     "pk": current_pk,
                     "mode": mode_l
@@ -348,8 +348,8 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0,
             else:
                 events.append({
                     "time": start_time,
-                    "event": f"🚄 En circulació {mode_l} (inici)",
-                    "details": f"Passant per {loc_name}{sig_info} (PK {current_pk:.3f})",
+                    "event": f"🚄 En circulació ({mode_l}) | Inici log",
+                    "details": f"Pos: {loc_name}{sig_info} (PK {current_pk:.3f})",
                     "pk": current_pk,
                     "mode": mode_l
                 })
