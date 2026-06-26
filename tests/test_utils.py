@@ -104,3 +104,26 @@ class TestGetSheetNames:
             with open(excel_files[0], "rb") as fh:
                 names = get_sheet_names(fh)
                 assert isinstance(names, list)
+
+
+class TestCleanTelemetryColumnNames:
+    def test_clean_windows_paths(self):
+        from src.data_processing import clean_telemetry_column_names
+        df = pd.DataFrame(columns=[
+            r"C:\Users\dcelma\OneDrive - FGC\Escriptori\CityLink\0011\20260626_16h34m.tel\INT_STM",
+            r"C:\Users\dcelma\OneDrive - FGC\Escriptori\CityLink\0011\20260626_16h34m.tel\SYS_SPEED (km/h)",
+            r"C:\Users\dcelma\OneDrive - FGC\Escriptori\CityLink\0011\20260626_16h34m.tel\Distancia (km)",
+            "SimpleColumn"
+        ])
+        cleaned = clean_telemetry_column_names(df)
+        assert cleaned.columns.tolist() == ["INT_STM", "SYS_SPEED (km/h)", "Distancia (km)", "SimpleColumn"]
+
+    def test_clean_linux_paths(self):
+        from src.data_processing import clean_telemetry_column_names
+        df = pd.DataFrame(columns=[
+            "/Users/grek/CityLink/0011/20260626_16h34m.tel/INT_STM",
+            "/Users/grek/CityLink/0011/20260626_16h34m.tel/SYS_SPEED (km/h)",
+            "RegularColumn"
+        ])
+        cleaned = clean_telemetry_column_names(df)
+        assert cleaned.columns.tolist() == ["INT_STM", "SYS_SPEED (km/h)", "RegularColumn"]

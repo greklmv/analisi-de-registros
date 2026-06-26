@@ -65,6 +65,26 @@ from src.geo import (  # noqa: E402,F401
 # ---------------------------------------------------------------------------
 # Càrrega de dades (Excel, CSV, PDF, mock)
 # ---------------------------------------------------------------------------
+def clean_telemetry_column_names(df: pd.DataFrame) -> pd.DataFrame:
+    """Neteja els nombres de columnes de possibles rutes absolutes de fitxers de telemetria (.tel)."""
+    new_cols = []
+    for col in df.columns:
+        col_str = str(col)
+        for ext in ['.tel\\', '.tel/', '.csv\\', '.csv/', '.xlsx\\', '.xlsx/']:
+            if ext in col_str:
+                parts = col_str.split(ext)
+                col_str = parts[-1]
+                break
+        else:
+            if '\\' in col_str:
+                parts = col_str.split('\\')
+                if parts[-1].strip():
+                    col_str = parts[-1]
+        new_cols.append(col_str)
+    df.columns = new_cols
+    return df
+
+
 @maybe_cache_data()
 def load_data(uploaded_file, sheet_name=0, train_type="DEFAULT"):
     """Suporta Excel, CSV, PDF o genera dades d'exemple amb caché."""
@@ -81,6 +101,9 @@ def load_data(uploaded_file, sheet_name=0, train_type="DEFAULT"):
         df = extract_from_pdf(uploaded_file)
     else:
         raise ValueError("Format de fitxer no compatible. Usa Excel o PDF.")
+
+    # Netejar columnes de possibles rutes absolutes de telemetria
+    df = clean_telemetry_column_names(df)
 
     # 1. Aplicar Capa de Normalización (Universal Mapper)
     from src.utils import apply_universal_mapping
