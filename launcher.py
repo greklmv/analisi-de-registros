@@ -19,9 +19,12 @@ def main():
     # Asegurar que se abra el navegador local
     os.environ["STREAMLIT_SERVER_HEADLESS"] = "false"
     os.environ["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
+    # Forzar puerto y dirección para evitar conflictos (ej. variables PORT=3000 de desarrollo en macOS)
+    os.environ["STREAMLIT_SERVER_PORT"] = "8501"
+    os.environ["PORT"] = "8501"
     
     # El archivo app.py debe estar dentro de la carpeta actual gracias al chdir
-    sys.argv = ["streamlit", "run", "app.py"]
+    sys.argv = ["streamlit", "run", "app.py", "--server.port", "8501", "--server.address", "localhost"]
     
     try:
         sys.exit(stcli.main())
