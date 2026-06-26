@@ -102,6 +102,34 @@ def load_data(uploaded_file, sheet_name=0, train_type="DEFAULT"):
     else:
         raise ValueError("Format de fitxer no compatible. Usa Excel o PDF.")
 
+    # 0. Detectar i promoure els encapçalaments reals si l'arxiu té metadades a les primeres files
+    def promote_header_if_needed(df_inner):
+        if df_inner.empty: return df_inner
+        keywords = ['HORA', 'TIME', 'VELOCIDAD', 'SPEED', 'VEL', 'DISTANCIA', 'KM', 'PK', 'DIST', 'FECHA']
+        current_cols = " ".join([str(c).upper() for c in df_inner.columns])
+        if sum(1 for k in keywords if k in current_cols) >= 2:
+            return df_inner
+            
+        for i in range(min(15, len(df_inner))):
+            row_str = " ".join([str(x).upper() for x in df_inner.iloc[i].values])
+            if sum(1 for k in keywords if k in row_str) >= 2:
+                new_cols = [str(c) if pd.notna(c) else f"Unnamed_{j}" for j, c in enumerate(df_inner.iloc[i].values)]
+                # Garantir noms únics
+                final_cols = []
+                for col in new_cols:
+                    orig = col
+                    cnt = 1
+                    while col in final_cols:
+                        col = f"{orig}_{cnt}"
+                        cnt += 1
+                    final_cols.append(col)
+                df_inner.columns = final_cols
+                df_inner = df_inner.iloc[i+1:].reset_index(drop=True)
+                break
+        return df_inner
+        
+    df = promote_header_if_needed(df)
+
     # Netejar columnes de possibles rutes absolutes de telemetria
     df = clean_telemetry_column_names(df)
 
