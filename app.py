@@ -270,7 +270,7 @@ def main():
 
         # Afegir Senyals al Gràfic
         if signals_data:
-            limit_pks = [df[km_col].min(), df[km_col].max()]
+            limit_pks = [safe_float(df[km_col].min()), safe_float(df[km_col].max())]
             track_key = "Via1" if "Ascendent" in st.session_state.active_direction else "Via2"
             active_signals = signals_data.get(track_key, signals_data)
             
