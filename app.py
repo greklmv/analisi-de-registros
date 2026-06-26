@@ -36,6 +36,26 @@ from src.ui_components import render_network_schematic
 
 logo_base64 = inject_styles()
 
+def safe_float(val, default=0.0):
+    """Conversió segura a float per a valors de telemetria."""
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
+def find_numeric_col(df, keywords, fallback_idx=None):
+    """Detecta una columna per paraules clau, validant que contingui dades numèriques."""
+    for c in df.columns:
+        c_upper = str(c).upper()
+        if any(k in c_upper for k in keywords):
+            numeric_vals = pd.to_numeric(df[c], errors='coerce')
+            if numeric_vals.notna().sum() > 0:
+                return c
+    if fallback_idx is not None and len(df.columns) > fallback_idx:
+        return df.columns[fallback_idx]
+    return None
+
+
 def main():
     # 1. Gestió d'estat inicial
     if 'selected_vars' not in st.session_state: st.session_state.selected_vars = []
@@ -133,7 +153,7 @@ def main():
     with ctx_c2:
         if 'processed_data' in st.session_state and st.session_state.processed_data is not None:
             df_temp = st.session_state.processed_data
-            km_col_temp = next((c for c in df_temp.columns if any(k in str(c).upper() for k in ['DIST', 'KM', 'PK'])), df_temp.columns[1] if len(df_temp.columns) > 1 else None)
+            km_col_temp = find_numeric_col(df_temp, ['DIST', 'KM', 'PK'], fallback_idx=1)
             if km_col_temp:
                 try:
                     start_km = float(df_temp[km_col_temp].iloc[0])
@@ -164,9 +184,9 @@ def main():
         df = st.session_state.get("processed_data")
 
     if df is not None:
-        speed_col = next((c for c in df.columns if any(k in str(c).upper() for k in ['VEL', 'SPEED', 'AAA'])), df.columns[0] if len(df.columns) > 0 else None)
-        km_col = next((c for c in df.columns if any(k in str(c).upper() for k in ['DIST', 'KM', 'PK'])), df.columns[1] if len(df.columns) > 1 else (df.columns[0] if len(df.columns) > 0 else None))
-        time_col = next((c for c in df.columns if any(k in str(c).upper() for k in ['TIME', 'HORA'])), df.columns[2] if len(df.columns) > 2 else (df.columns[0] if len(df.columns) > 0 else None))
+        speed_col = find_numeric_col(df, ['VEL', 'SPEED', 'AAA'], fallback_idx=0)
+        km_col = find_numeric_col(df, ['DIST', 'KM', 'PK'], fallback_idx=1)
+        time_col = next((c for c in df.columns if any(k in str(c).upper() for k in ['TIME', 'HORA', 'FECHA'])), df.columns[2] if len(df.columns) > 2 else (df.columns[0] if len(df.columns) > 0 else None))
         ato_col = next((c for c in df.columns if "ATO" in str(c).upper()), None)
 
         if not speed_col or not km_col or not time_col:
@@ -181,7 +201,7 @@ def main():
         cursor_idx = st.select_slider("Gliseu pel registre operacional:", options=range(len(df)), value=len(df)-1, format_func=lambda x: times_l[x])
         point = df.iloc[cursor_idx]
         
-        pk_abs = float(point[km_col])
+        pk_abs = safe_float(point[km_col])
         origin_id = None
         sel_st = st.session_state.selected_st_ui
         start_pk = None
@@ -189,7 +209,7 @@ def main():
             obj = next((s for s in get_all_stations_flat() if s["display_name"] == sel_st), None)
             if obj:
                 origin_id, start_pk = obj["id"], float(obj.get("pk_abs", obj.get("pk", 0)))
-                dist = float(point[km_col]) - float(df.iloc[0][km_col])
+                dist = safe_float(point[km_col]) - safe_float(df.iloc[0][km_col])
                 pk_abs = start_pk + (dist if "Ascendent" in st.session_state.active_direction else -dist)
 
         closest = get_closest_station(pk_abs, load_stations())
@@ -216,10 +236,10 @@ def main():
         st.markdown(f'<p style="text-align:center; font-weight:700; color:{t["primary"]}; margin-top:-20px; margin-bottom:25px; letter-spacing:0.02em;">📍 POSICIÓ ACTUAL: {closest}</p>', unsafe_allow_html=True)
 
         k_cols = st.columns(5)
-        k_cols[0].markdown(f'<div class="cockpit-card"><div class="kpi-label">🚀 Velocitat</div><div class="kpi-value">{float(point[speed_col]):.1f}<span class="kpi-unit">KM/H</span></div></div>', unsafe_allow_html=True)
+        k_cols[0].markdown(f'<div class="cockpit-card"><div class="kpi-label">🚀 Velocitat</div><div class="kpi-value">{safe_float(point[speed_col]):.1f}<span class="kpi-unit">KM/H</span></div></div>', unsafe_allow_html=True)
         k_cols[1].markdown(f'<div class="cockpit-card"><div class="kpi-label">📏 Posició PK</div><div class="kpi-value">{pk_abs:.3f}<span class="kpi-unit">KM</span></div></div>', unsafe_allow_html=True)
         
-        dist_recorreguda = abs(float(point[km_col]) - float(df.iloc[0][km_col]))
+        dist_recorreguda = abs(safe_float(point[km_col]) - safe_float(df.iloc[0][km_col]))
         k_cols[2].markdown(f'<div class="cockpit-card"><div class="kpi-label">🛤️ Dist. Recorreguda</div><div class="kpi-value">{dist_recorreguda:.3f}<span class="kpi-unit">KM</span></div></div>', unsafe_allow_html=True)
         
         mode = "🤖 ATO" if (ato_col and point[ato_col]==1) else "⚙️ ATP"
