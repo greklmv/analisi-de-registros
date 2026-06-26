@@ -18,7 +18,7 @@ from typing import Any, Optional
 
 from src.config import SETTINGS
 from src.geo import (
-    load_stations, get_closest_station,
+    load_stations, get_closest_station, get_closest_station_info,
     load_signals, find_nearest_signal_id,
     calculate_pk_at_index,
 )
@@ -307,8 +307,8 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0,
         dist_km = (rel_m / 1000)
         current_pk = (starting_pk if starting_pk is not None else init_km) + (dist_km if is_ascendant else -dist_km)
 
-        st_info_str = get_closest_station(current_pk, stations_data, line_filter=line_filter)
-        loc_name = st_info_str if st_info_str else "Tram Obert"
+        st_info = get_closest_station_info(current_pk, stations_data, line_filter=line_filter)
+        st_name = st_info["name"] if st_info else "Tram Obert"
 
         try:
             t1 = pd.to_datetime(group[time_col].iloc[0])
@@ -323,7 +323,7 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0,
                 sig_info = f" | {sig_id}" if sig_id else ""
                 events.append({
                     "time": start_time,
-                    "event": f"🅿️ Estacionat | Pos: {loc_name}",
+                    "event": f"🅿️ S'estaciona a {st_name}",
                     "details": f"Aturat durant {int(duration_sec)}s (PK {current_pk:.3f}){sig_info}",
                     "pk": current_pk
                 })
@@ -340,7 +340,7 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0,
             if i > 0:
                 events.append({
                     "time": start_time,
-                    "event": f"🚀 Inici moviment ({mode_l}) | Pos: {loc_name}",
+                    "event": f"🚀 Efectua sortida ({mode_l}) de {st_name}",
                     "details": f"Velocitat màx: {group[speed_col].max():.1f} km/h (PK {current_pk:.3f}){sig_info}",
                     "pk": current_pk,
                     "mode": mode_l
@@ -349,7 +349,7 @@ def get_event_based_summary(df, km_col, speed_col, time_col, starting_pk=0.0,
                 events.append({
                     "time": start_time,
                     "event": f"🚄 En circulació ({mode_l}) | Inici log",
-                    "details": f"Pos: {loc_name}{sig_info} (PK {current_pk:.3f})",
+                    "details": f"Pos: prop de {st_name}{sig_info} (PK {current_pk:.3f})",
                     "pk": current_pk,
                     "mode": mode_l
                 })

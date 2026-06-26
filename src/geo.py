@@ -61,22 +61,7 @@ def load_stations(file_path: str = PATHS["stations"]) -> dict[str, Any]:
         return {}
 
 
-def get_closest_station(pk: float, stations_data: dict, line_filter: Any = None) -> str:
-    """
-    Identifica l'estació més propera per a un PK determinat.
-
-    Retorna un missatge llegible per la UI:
-    - ``"Aturat a {name} ({id})"`` si està dins de l'umbral de parada.
-    - ``"Rebassat {name} (+{m} m)"`` si ha passat l'estació.
-    - ``"Arribant a {name} (-{m} m)"`` si s'hi acosta.
-    - ``"Tram Obert"`` si no hi ha dades o cap propera.
-
-    Opcionalment filtra per línia (``line_filter`` = llista/col·lecció
-    d'IDs de secció vàlids).
-    """
-    if not stations_data:
-        return "Tram Obert"
-
+def get_closest_station_info(pk: float, stations_data: dict, line_filter: Any = None) -> Optional[dict]:
     best_station: Optional[dict] = None
     min_dist = float("inf")
 
@@ -95,7 +80,15 @@ def get_closest_station(pk: float, stations_data: dict, line_filter: Any = None)
                     "pk": st_pk,
                     "diff": dist,
                 }
+    return best_station
 
+
+def get_closest_station(pk: float, stations_data: dict, line_filter: Any = None) -> str:
+    """
+    Troba l'estació més propera i calcula on estem respecte a ella.
+    Retorna un string formatat com 'Rebassat X', 'Arribant a Y', etc.
+    """
+    best_station = get_closest_station_info(pk, stations_data, line_filter)
     if not best_station:
         return "Tram Obert"
 
