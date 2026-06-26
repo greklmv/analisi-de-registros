@@ -46,7 +46,7 @@ def get_minute_summary(df, time_col='Hora', speed_col='Velocitat', km_col='KM',
     df_temp[km_col] = pd.to_numeric(df_temp[km_col], errors='coerce').fillna(0)
 
     df_temp[time_col] = pd.to_datetime(df_temp[time_col], errors='coerce')
-    df_temp = df_temp.set_index(time_col)
+    df_temp = df_temp.set_index(time_col, drop=False)
 
     resampled = df_temp.resample('1min')
 
