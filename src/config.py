@@ -83,7 +83,9 @@ SETTINGS: dict[str, Any] = load_settings()
 def reload_settings(train_type: str = "DEFAULT") -> dict[str, Any]:
     """
     Torna a carregar ``settings.json`` i actualitza ``SETTINGS`` in-place.
+    Això manté les referències als altres mòduls (com analytics i geo).
     """
     global SETTINGS
-    SETTINGS = load_settings(train_type)
+    SETTINGS.clear()
+    SETTINGS.update(load_settings(train_type))
     return SETTINGS

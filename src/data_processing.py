@@ -27,10 +27,10 @@ from src.config import SETTINGS  # noqa: F401  (re-exportat per compat amb app.p
 # ---------------------------------------------------------------------------
 # Compat cap enrere: SETTINGS
 # ---------------------------------------------------------------------------
-def load_settings(file_path: str = "src/settings.json"):
+def load_settings(train_type: str = "DEFAULT", file_path: str = "src/settings.json"):
     """Carrega els llindars operatius. Delega a :mod:`src.config`."""
     from src.config import load_settings as _load
-    return _load(file_path)
+    return _load(train_type=train_type, file_path=file_path)
 
 
 # ---------------------------------------------------------------------------
@@ -86,10 +86,32 @@ def load_data(uploaded_file, sheet_name=0, train_type="DEFAULT"):
     from src.utils import apply_universal_mapping
     df = apply_universal_mapping(df, train_type=train_type)
 
+    # 1.b Adaptar variables Active-Low para UT 115
+    if train_type == "UT 115":
+        for signal in ["FU_SISTEMA", "BOLET"]:
+            if signal in df.columns:
+                df[signal] = pd.to_numeric(df[signal], errors='coerce')
+                # 0 se convierte en 1 (Activo), 1 se convierte en 0 (Inactivo)
+                df[signal] = 1 - df[signal]
+
+
     # Normalització inicial de PK si existeix
     km_potential = next((c for c in df.columns if any(k in str(c).upper() for k in ['DISTANCIA', 'KM', 'X_UT', 'DIST_'])), None)
     if km_potential:
-        df[km_potential] = pd.to_numeric(df[km_potential], errors='coerce').fillna(0)
+        # Coaccionar a numeric; reemplazar textos inválidos con NaN
+        df[km_potential] = pd.to_numeric(df[km_potential], errors='coerce')
+        # Limpiar filas donde la distancia sea inválida
+        df = df.dropna(subset=[km_potential])
+
+    # Buscar columna de velocitat per normalitzar-la també
+    speed_col = next((c for c in df.columns if any(k in str(c).upper() for k in ['VEL', 'SPEED', 'V_'])), None)
+    if speed_col:
+        df[speed_col] = pd.to_numeric(df[speed_col], errors='coerce')
+        df = df.dropna(subset=[speed_col])
+        
+    # Si desprès de netejar queda buit
+    if df.empty:
+        raise ValueError("L'arxiu no conté dades vàlides o les columnes essencials tenen formats incorrectes.")
 
     # Normalització inicial de columnes
     df.columns = [str(c).strip() for c in df.columns]

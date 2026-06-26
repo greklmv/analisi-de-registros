@@ -187,12 +187,20 @@ def detect_anomalies(df, speed_col, km_col, time_col, starting_pk=0.0,
     # Inyectamos settings locales para que @OVERSPEED_THRESHOLD funcione
     env = dict(SETTINGS)
     
+    import re
     # 2. Avaluar regles definides a rules.json
     for rule_id, rule_def in rules.items():
         cond = rule_def.get("condition")
         if not cond: continue
         
         cond_safe = cond.replace("VELOCIDAD", f"`{speed_col}`")
+        
+        # Verificar que las columnas existan en el dataframe
+        vars_in_cond = set(re.findall(r'\b[A-Za-z_][A-Za-z0-9_]*\b', cond_safe))
+        missing_cols = [v for v in vars_in_cond if v not in df_eval.columns and v not in env and v != speed_col and not v.startswith("df_eval")]
+        
+        if missing_cols:
+            continue
         
         try:
             mask = df_eval.eval(cond_safe, local_dict=env)

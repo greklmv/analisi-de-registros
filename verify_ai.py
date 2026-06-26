@@ -6,6 +6,10 @@ from src.openrouter_client import analyze_with_ai
 from src.ai_memory import add_lesson, load_memory, clear_memory
 
 def test_ai_system():
+    # Usar un archivo de memoria temporal para no borrar el conocimiento real
+    import src.ai_memory
+    src.ai_memory.MEMORY_FILE = "mock_memory_test.json"
+    
     print("--- Test 1: Memòria i Aprenentatge ---")
     clear_memory()
     add_lesson("Al PK 12.5 el límit de velocitat és de 95 km/h per proves especials.")

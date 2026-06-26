@@ -51,10 +51,16 @@
         "FU_SISTEMA": "URGEN_FRE",
         "BOLET": "EMER_FRE",
         "FU_MANIPULADOR": "MC_FU_C1",
-        "ANTIPAT": "SOREJAT",
+        "ANTIPAT": "BC_WSP",
+        "ARENADO": "SOREJAT",
         "PUERTAS_AS": "LLA_PORT_AS",
         "PUERTAS_DS": "LLA_PORT_DS",
         "BC_WSP": "BC_WSP",
-        "TC_WSP": "TC_WSP"
+        "TC_WSP": "TC_WSP",
+        "PRESION_TDP": "TDP_PRES",
+        "ESFUERZO": "FRELECT_ESF",
+        "MD-FU-HM": "EMERG_HM",
+        "FU ATC": "OVERSPD_EMER",
+        "BOCINA": "BOTZ_ALTAC1"
     }
 }
